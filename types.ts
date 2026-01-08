@@ -1,5 +1,4 @@
 
-
 export type Gender = 'male' | 'female';
 
 export interface AiReportRecord {
@@ -57,6 +56,12 @@ export interface LuckPillar {
   startAge: number;
   startYear: number;
   endYear: number;
+  ganZhi: GanZhi;
+}
+
+export interface XiaoYun {
+  age: number;
+  year: number;
   ganZhi: GanZhi;
 }
 
@@ -140,72 +145,38 @@ export interface BaziChart {
     day: Pillar;
     hour: Pillar;
   };
-  daLiu?: Array<{
-    startAge: number;
-    ganZhi: string;
-    element: string;
-    shiShen?: string;
-  }>;
   
-  shenSha?: {
-    auspicious?: string[];
-    inauspicious?: string[];
-    noblemen?: string[];
-  };
-  
+  // These are legacy fields, keeping for potential data migration if needed
+  daLiu?: any[];
+  shenSha?: any;
   kongWang?: string[];
-  
-  shiShenRelations?: {
-    year: { gan: string; zhi: string };
-    month: { gan: string; zhi: string };
-    day: { gan: string; zhi: string };
-    hour: { gan: string; zhi: string };
-  };
-  
-  naYinElements?: {
-    year: string;
-    month: string;
-    day: string;
-    hour: string;
-  };
-  
-  taiYuanMingGong?: {
-    taiYuan: string;
-    mingGong: string;
-    shenGong?: string;
-  };
-  
-  specialPatterns?: Array<{
-    name: string;
-    description: string;
-    level: string;
-  }>;
-  
-  birthTime?: {
-    year: number;
-    month: number;
-    day: number;
-    hour: number;
-  };
-
+  shiShenRelations?: any;
+  naYinElements?: any;
+  taiYuanMingGong?: any; // Deprecated by top-level fields
+  specialPatterns?: any[];
+  birthTime?: any;
   currentDaYun?: string;
   keyYears?: string[];
   startYunAge?: number;
+
   mingGong: string; 
+  shenGong: string; // New field for Body Palace
   taiYuan: string; 
   taiXi: string; 
   wuxingCounts: Record<string, number>;
   mangPai: string[]; 
   luckPillars: LuckPillar[];
-  startLuckText: string; // e.g., "出生后1年5月开始行大运"
-  godStrength: GodStrength[]; // New analysis field
-  shenShaInteractions: ShenShaInteraction[]; // New Interaction Analysis
-  balance: BalanceAnalysis; // New Yong Shen Analysis
-  pattern: PatternAnalysis; // New Pattern Analysis
-  originalTime?: string; // e.g. "12:00"
-  solarTime?: string; // e.g. "12:33"
+  xiaoYun: XiaoYun[];
+  startLuckText: string;
+  godStrength: GodStrength[];
+  shenShaInteractions: ShenShaInteraction[];
+  balance: BalanceAnalysis;
+  pattern: PatternAnalysis;
+  originalTime?: string;
+  solarTime?: string;
   solarTimeData?: { longitude: number; city: string };
 }
+
 
 export enum AppTab {
   HOME = 'home',

@@ -5,7 +5,7 @@ import { AppTab, ChartSubTab, UserProfile, BaziChart, Gender, TrendActivation, P
 import { calculateBazi, getGanZhiForYear, calculateAnnualTrend, calculateAnnualFortune, getAdvancedInterpretation } from './services/baziService';
 import { analyzeBazi } from './services/geminiService';
 import { getArchives, saveArchive, deleteArchive, saveAiReportToArchive, updateArchiveTags, updateArchiveAvatar, updateArchiveName } from './services/storageService';
-import { User, Calendar, ArrowRight, Activity, BrainCircuit, RotateCcw, ChevronDown, Info, BarChart3, Tag, Zap, ScrollText, Stars, Clock, X, BookOpen, Compass, AlertTriangle, CheckCircle, MinusCircle, Crown, Search, Key, Sparkles, Smile, Heart, Star, Sun, Moon, Cloud, Ghost, Flower2, Bird, Cat, Edit2, Trash2, Plus, Copy, FileText, ChevronRight, Play, MapPin, Check, History, ClipboardCopy } from 'lucide-react';
+import { User, Calendar, ArrowRight, Activity, BrainCircuit, RotateCcw, ChevronDown, Info, BarChart3, Tag, Zap, ScrollText, Stars, Clock, X, BookOpen, Compass, AlertTriangle, CheckCircle, MinusCircle, Crown, Search, Key, Sparkles, Smile, Heart, Star, Sun, Moon, Cloud, Ghost, Flower2, Bird, Cat, Edit2, Trash2, Plus, Copy, FileText, ChevronRight, Play, MapPin, Check, History, ClipboardCopy, Building, Baby, GitCommitHorizontal } from 'lucide-react';
 import { 
   HEAVENLY_STEMS, 
   EARTHLY_BRANCHES, 
@@ -17,6 +17,9 @@ import {
   CHAR_MEANINGS,
   CHINA_LOCATIONS
 } from './services/constants';
+
+// Fix: Define getStemIndex to resolve reference error in ChartInfoCard.
+const getStemIndex = (stem: string) => Math.max(0, HEAVENLY_STEMS.indexOf(stem));
 
 // --- Avatar Setup ---
 const PRESET_AVATARS: Record<string, React.ElementType> = {
@@ -78,10 +81,53 @@ const ElementText: React.FC<{ text: string; type?: 'gan' | 'zhi' | 'text'; class
   return <span className={`${getColor(text)} ${className}`}>{text}</span>;
 };
 
-// ... [Keep existing Helper Components: TipBox, BalanceCard, PatternCard, AnnualFortuneCard, InfoModal, TipsView, HomeView] ...
-// To save space in the XML, I will assume the previous helper components are retained unless changed.
-// However, since I need to output the FULL file content for the replacement to work correctly in the tool, I must include everything.
-// I will include the full code below.
+const ChartInfoCard: React.FC<{ chart: BaziChart }> = ({ chart }) => {
+    const kongWangBranches = useMemo(() => {
+        let branches: string[] = [];
+        if (chart.pillars.year.kongWang) branches.push(chart.pillars.year.ganZhi.zhi);
+        if (chart.pillars.month.kongWang) branches.push(chart.pillars.month.ganZhi.zhi);
+        if (chart.pillars.day.kongWang) branches.push(chart.pillars.day.ganZhi.zhi);
+        if (chart.pillars.hour.kongWang) branches.push(chart.pillars.hour.ganZhi.zhi);
+        // From day pillar
+        const dayGanIdx = getStemIndex(chart.pillars.day.ganZhi.gan);
+        const dayZhiIdx = EARTHLY_BRANCHES.indexOf(chart.pillars.day.ganZhi.zhi);
+        const kwIndex = (dayZhiIdx - dayGanIdx + 12) % 12;
+        const kwMap: Record<number, string[]> = { 0: ['戌', '亥'], 10: ['申', '酉'], 8: ['午', '未'], 6: ['辰', '巳'], 4: ['寅', '卯'], 2: ['子', '丑'] };
+        const dayKW = kwMap[kwIndex] || [];
+        return { day: dayKW.join(''), inChart: Array.from(new Set(branches)) };
+    }, [chart]);
+
+    return (
+        <div className="bg-white border border-stone-300 rounded-lg overflow-hidden shadow-sm font-serif">
+            <div className="bg-stone-50 border-b border-stone-200 px-3 py-2 flex items-center gap-2">
+                <Info size={16} className="text-stone-600" />
+                <span className="font-bold text-sm text-stone-800">命盘信息</span>
+            </div>
+            <div className="p-3.5 text-xs text-stone-700 space-y-2.5">
+                <div className="grid grid-cols-3 gap-2">
+                    <div className="flex items-center gap-2 bg-stone-50 p-2 rounded-lg border border-stone-100"><Building size={14} className="text-indigo-500" /><span className="font-medium">命宫:</span><span className="font-bold">{chart.mingGong}</span></div>
+                    <div className="flex items-center gap-2 bg-stone-50 p-2 rounded-lg border border-stone-100"><GitCommitHorizontal size={14} className="text-teal-500" /><span className="font-medium">身宫:</span><span className="font-bold">{chart.shenGong}</span></div>
+                    <div className="flex items-center gap-2 bg-stone-50 p-2 rounded-lg border border-stone-100"><Baby size={14} className="text-rose-500" /><span className="font-medium">胎元:</span><span className="font-bold">{chart.taiYuan}</span></div>
+                </div>
+                <div className="flex items-center gap-2 bg-stone-50 p-2 rounded-lg border border-stone-100">
+                    <span className="font-medium">空亡:</span><span className="font-bold">{kongWangBranches.day}</span>
+                    {kongWangBranches.inChart.length > 0 && <span className="text-[10px] text-stone-400">(命中见: {kongWangBranches.inChart.join(',')})</span>}
+                </div>
+                <div className="flex items-center gap-2 bg-stone-50 p-2 rounded-lg border border-stone-100">
+                    <span className="font-medium">起运:</span><span className="font-bold text-amber-800">{chart.startLuckText}</span>
+                </div>
+                {chart.solarTimeData && (
+                     <div className="flex items-center gap-2 bg-indigo-50 p-2 rounded-lg border border-indigo-100 text-indigo-800">
+                         <Sun size={14} />
+                         <span className="font-medium">真太阳时:</span>
+                         <span className="font-bold">{chart.solarTime}</span>
+                         <span className="text-[10px] opacity-70">(原: {chart.originalTime})</span>
+                     </div>
+                )}
+            </div>
+        </div>
+    );
+};
 
 const TipBox: React.FC<{ title: string; icon?: React.ElementType; children: React.ReactNode }> = ({ title, icon: Icon = ScrollText, children }) => (
   <div className="bg-white rounded-lg border border-stone-200 overflow-hidden mb-3 shadow-sm">
@@ -225,10 +271,6 @@ const TipsView: React.FC<{ chart: BaziChart | null }> = ({ chart }) => {
     );
   }
 
-  // ... [Keep TipsView logic same as before, simplified for brevity in this response but would include full logic]
-  // Note: For the actual file replacement, I must include the full logic found in the original file. 
-  // I am repeating the critical parts here to ensure context.
-  
   // Collect all unique Shen Sha with pillar info
   const allShenShaMap = new Map<string, string[]>();
   ['year', 'month', 'day', 'hour'].forEach(key => {
@@ -336,7 +378,7 @@ const TipsView: React.FC<{ chart: BaziChart | null }> = ({ chart }) => {
             </div>
         </div>
 
-        {/* Shen Sha Detailed List (New) */}
+        {/* Shen Sha Detailed List */}
         {allShenShaMap.size > 0 && (
             <div className="bg-white rounded-xl border border-stone-200 p-4 shadow-sm mb-4">
                 <h4 className="font-bold text-sm text-stone-800 mb-3 flex items-center gap-2"><BookOpen size={16} className="text-indigo-500" /> 神煞详解</h4>
@@ -588,7 +630,6 @@ const ChartView: React.FC<{
   const [annualFortune, setAnnualFortune] = useState<AnnualFortune | null>(null);
 
   useEffect(() => {
-    // When profile changes (e.g. selecting from history), load the latest report if available
     setAiReport(profile.aiReports?.[0]?.content || '');
   }, [profile.id, profile.aiReports]);
 
@@ -599,6 +640,7 @@ const ChartView: React.FC<{
         if (foundLuckIdx !== -1) {
             setSelectedLuckIdx(foundLuckIdx);
         }
+        setAnalysisYear(currentYr);
     }
   }, [chart]);
 
@@ -659,20 +701,7 @@ const ChartView: React.FC<{
 
     return (
       <div className="space-y-4">
-         {/* Solar Time Info Banner */}
-         {chart.solarTime && (
-             <div className="bg-indigo-50 border border-indigo-100 rounded-lg p-3 text-xs text-indigo-800 flex justify-between items-center mb-2">
-                 <div className="flex items-center gap-2">
-                     <Sun size={14} />
-                     <span>已启用真太阳时校准</span>
-                 </div>
-                 <div className="text-right">
-                     <div className="font-bold">{chart.solarTime}</div>
-                     <div className="text-[10px] opacity-70">原时间: {chart.originalTime}</div>
-                 </div>
-             </div>
-         )}
-
+         <ChartInfoCard chart={chart} />
          <div className="bg-white border border-stone-300 rounded-lg overflow-hidden shadow-sm">
             <div className="grid grid-cols-5 divide-x divide-stone-200 bg-stone-100 border-b border-stone-300 text-center text-sm font-bold text-stone-700"><div className="py-2 bg-stone-200/50"></div>{pillars.map(p => <div key={p.key} className="py-2">{p.label}</div>)}</div>
             {rows.map((row, idx) => (<div key={idx} className={`grid grid-cols-5 divide-x divide-stone-200 border-b border-stone-100 ${idx % 2 === 0 ? 'bg-white' : 'bg-stone-50/50'}`}><div className="flex items-center justify-center font-bold text-xs text-stone-500 bg-stone-100/30 p-2">{row.label}</div>{pillars.map(p => (<div key={p.key} className="flex flex-col items-center justify-center p-1.5 text-center min-h-[2.5rem] relative">{row.render(p.data)}</div>))}</div>))}
@@ -687,13 +716,21 @@ const ChartView: React.FC<{
     const currentLuck = chart.luckPillars[selectedLuckIdx];
     const annualGanZhi = getGanZhiForYear(analysisYear, chart.dayMaster);
     
+    const birthYear = parseInt(profile.birthDate.split('-')[0]);
+    const ageInYear = analysisYear - birthYear + 1; // Nominal Age (虚岁)
+    
+    const startDaYunAge = chart.luckPillars[0]?.startAge || 999;
+    const isXiaoYun = ageInYear < startDaYunAge;
+    
+    const xiaoYunData = chart.xiaoYun.find(x => x.age === ageInYear);
+
     const columns = [
         { title: '时柱', ganZhi: chart.pillars.hour.ganZhi, data: chart.pillars.hour },
         { title: '日柱', ganZhi: chart.pillars.day.ganZhi, data: chart.pillars.day },
         { title: '月柱', ganZhi: chart.pillars.month.ganZhi, data: chart.pillars.month },
         { title: '年柱', ganZhi: chart.pillars.year.ganZhi, data: chart.pillars.year },
-        { title: '大运', isDynamic: true, ganZhi: currentLuck?.ganZhi, age: currentLuck?.startAge, year: currentLuck?.startYear },
-        { title: '流年', isDynamic: true, ganZhi: annualGanZhi, age: (analysisYear - parseInt(profile.birthDate.split('-')[0]) + 1), year: analysisYear }
+        { title: isXiaoYun ? '小运' : '大运', isDynamic: true, ganZhi: isXiaoYun ? xiaoYunData?.ganZhi : currentLuck?.ganZhi, age: isXiaoYun ? xiaoYunData?.age : currentLuck?.startAge, year: isXiaoYun ? xiaoYunData?.year : currentLuck?.startYear },
+        { title: '流年', isDynamic: true, ganZhi: annualGanZhi, age: ageInYear, year: analysisYear }
     ];
 
     return (
@@ -701,7 +738,7 @@ const ChartView: React.FC<{
             <div className="bg-white border border-stone-300 rounded-lg overflow-hidden shadow-sm">
                 <div className="grid grid-cols-[2.5rem_repeat(6,1fr)] divide-x divide-stone-200 divide-y border-b border-stone-200">
                      <div className="bg-stone-700 text-stone-50 flex items-center justify-center text-xs font-bold p-1">日期</div>
-                     {columns.map((col, i) => <div key={i} className="bg-stone-700 text-stone-50 text-center py-1 text-sm font-bold">{col.title}</div>)}
+                     {columns.map((col, i) => <div key={i} className={`text-center py-1 text-sm font-bold ${col.isDynamic ? 'bg-blue-800 text-white' : 'bg-stone-700 text-stone-50'}`}>{col.title}</div>)}
 
                      <div className="bg-stone-100 flex items-center justify-center text-[10px] text-stone-500 font-medium leading-tight">岁/年</div>
                      {columns.map((col, i) => (<div key={i} className="text-center py-1 text-xs text-stone-600 h-9 flex flex-col justify-center bg-stone-50">{col.isDynamic ? (<><span className="text-blue-700 font-bold scale-90 block">{col.age}岁</span><span className="scale-75 text-stone-400 block -mt-0.5">{col.year}</span></>) : <span className="text-stone-300">-</span>}</div>))}
@@ -726,8 +763,22 @@ const ChartView: React.FC<{
             <div className="bg-white border border-stone-300 rounded-lg overflow-hidden shadow-sm">
                 <div className="bg-stone-600 text-stone-50 px-2 py-1.5 text-xs font-bold text-center border-b border-stone-500">{chart.startLuckText}</div>
                 <div className="flex overflow-x-auto divide-x divide-stone-200 no-scrollbar">
+                     {/* Render Xiao Yun if exists */}
+                     {chart.xiaoYun.length > 0 && chart.xiaoYun.map(xy => {
+                         const isActive = isXiaoYun && analysisYear === xy.year;
+                         return (
+                            <div key={xy.age} onClick={() => setAnalysisYear(xy.year)} className={`flex-1 min-w-[3rem] py-2 cursor-pointer transition-colors flex flex-col items-center ${isActive ? 'bg-indigo-100 ring-inset ring-2 ring-indigo-400' : 'bg-indigo-50 hover:bg-indigo-100'}`}>
+                                <span className="text-[9px] text-indigo-400 mb-1">{xy.age}岁</span>
+                                <div className="font-serif font-bold text-sm"><ElementText text={xy.ganZhi.gan} /></div>
+                                <div className="font-serif font-bold text-sm"><ElementText text={xy.ganZhi.zhi} /></div>
+                                <span className="text-[9px] text-indigo-400 mt-1">{xy.year}</span>
+                            </div>
+                         )
+                     })}
+                     <div className="min-w-[0.5rem] bg-stone-200"></div>
+
                      {chart.luckPillars.map(l => { 
-                         const isActive = selectedLuckIdx === l.index - 1;
+                         const isActive = !isXiaoYun && selectedLuckIdx === l.index - 1;
                          return (
                             <div key={l.index} onClick={() => { setSelectedLuckIdx(l.index - 1); setAnalysisYear(l.startYear); }} className={`flex-1 min-w-[3rem] py-2 cursor-pointer transition-colors flex flex-col items-center ${isActive ? 'bg-amber-100 ring-inset ring-2 ring-amber-400' : 'bg-white hover:bg-stone-50'}`}>
                                 <span className="text-[9px] text-stone-400 mb-1">{l.startAge}岁</span>
@@ -744,13 +795,12 @@ const ChartView: React.FC<{
                 <div className="text-xs font-bold text-stone-500 mb-2 px-1">流年选择 ({analysisYear})</div>
                 <div className="grid grid-cols-5 gap-1">
                     {Array.from({length: 10}).map((_, i) => {
-                        const lp = chart.luckPillars[selectedLuckIdx];
+                        const lp = isXiaoYun ? { startYear: chart.xiaoYun[0]?.year || new Date().getFullYear() - 5 } : chart.luckPillars[selectedLuckIdx];
                         if (!lp) return <div key={i}></div>;
                         const y = lp.startYear + i;
                         const gz = getGanZhiForYear(y, chart.dayMaster);
                         const isSelected = analysisYear === y;
                         
-                        // Calculate basic rating for the grid item
                         const fortune = calculateAnnualFortune(chart, y);
                         let borderColor = 'border-stone-200';
                         let bgColor = 'bg-stone-50';
@@ -833,7 +883,7 @@ const ChartView: React.FC<{
                                  <h3 className="font-bold text-stone-800">大师解读报告</h3>
                              </div>
                              <div className="flex items-center gap-2">
-                                <span className="text-[10px] bg-indigo-50 text-indigo-600 px-2 py-1 rounded-full border border-indigo-100 hidden sm:inline-block">DeepSeek V3</span>
+                                <span className="text-[10px] bg-indigo-50 text-indigo-600 px-2 py-1 rounded-full border border-indigo-100 hidden sm:inline-block">Gemini 3 Flash</span>
                                 <button 
                                     onClick={handleAiAnalysis}
                                     className="text-xs flex items-center gap-1 bg-stone-100 hover:bg-stone-200 text-stone-600 px-2 py-1 rounded-lg transition-colors"

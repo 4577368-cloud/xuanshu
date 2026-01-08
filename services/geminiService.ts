@@ -1,3 +1,4 @@
+
 import { GoogleGenAI } from "@google/genai";
 import { BaziChart } from "../types";
 
@@ -8,17 +9,25 @@ export const analyzeBazi = async (chart: BaziChart, question?: string): Promise<
 
     // Helper to format Luck Pillars (Da Yun)
     const formatDaLiu = () => {
+      let output = "";
+      // Xiao Yun
+      if (chart.xiaoYun && chart.xiaoYun.length > 0) {
+          output += "### 童限 (小运)\n";
+          output += chart.xiaoYun.map(xy => 
+              `${xy.age}岁: ${xy.ganZhi.gan}${xy.ganZhi.zhi} (${xy.year}年)`
+          ).join("、") + "\n\n";
+      }
+      
+      // Da Yun
+      output += "### 大运\n";
       if (chart.luckPillars && chart.luckPillars.length > 0) {
-        return chart.luckPillars.map(lp => 
+        output += chart.luckPillars.map(lp => 
            `${lp.index}. ${lp.startAge}岁 ${lp.ganZhi.gan}${lp.ganZhi.zhi} (${lp.startYear}年 - ${lp.endYear}年)`
         ).join('\n');
+      } else {
+        output += "未计算大运";
       }
-      if (chart.daLiu && chart.daLiu.length > 0) {
-        return chart.daLiu.map((yun, idx) => 
-          `${idx+1}. ${yun.startAge}岁 ${yun.ganZhi} (${yun.element})`
-        ).join('\n');
-      }
-      return "未计算大运";
+      return output;
     };
 
     // Helper to format Shen Sha
@@ -64,11 +73,11 @@ export const analyzeBazi = async (chart: BaziChart, question?: string): Promise<
       时柱纳音: ${chart.pillars.hour.ganZhi.naYin}`;
 
     // Helper for Tai Yuan / Ming Gong
-    const taiYuanMingGong = chart.taiYuanMingGong ? `
-      胎元: ${chart.taiYuanMingGong.taiYuan}
-      命宫: ${chart.taiYuanMingGong.mingGong}
-      身宫: ${chart.taiYuanMingGong.shenGong || '未计算'}
-    ` : '未计算胎元命宫';
+    const taiYuanMingGong = `
+      胎元: ${chart.taiYuan}
+      命宫: ${chart.mingGong}
+      身宫: ${chart.shenGong}
+    `;
 
     // Helper for Tiao Hou
     const tiaoHouShen = chart.balance.tiaoHouYongShen ? 
@@ -78,7 +87,7 @@ export const analyzeBazi = async (chart: BaziChart, question?: string): Promise<
     const chartDescription = `
 ## 📜 命主基本信息
 - **性别**: ${chart.gender === 'male' ? '男命' : '女命'}
-- **出生时间**: ${chart.birthTime?.year || ''}年 ${chart.birthTime?.month || ''}月 ${chart.birthTime?.day || ''}日 ${chart.birthTime?.hour || ''}时
+- **出生时间**: ${chart.originalTime}
 - **八字四柱**: 
   - 年柱: ${chart.pillars.year.ganZhi.gan}${chart.pillars.year.ganZhi.zhi} (${chart.pillars.year.ganZhi.ganElement}${chart.pillars.year.ganZhi.zhiElement})
   - 月柱: ${chart.pillars.month.ganZhi.gan}${chart.pillars.month.ganZhi.zhi} (${chart.pillars.month.ganZhi.ganElement}${chart.pillars.month.ganZhi.zhiElement})
@@ -110,9 +119,8 @@ ${naYinInfo}
 ## 🏛️ 胎元命宫
 ${taiYuanMingGong}
 
-## 📅 大运流年
-### 起运时间: ${chart.startLuckText || chart.startYunAge + '岁'}
-### 大运走势:
+## 📅 大运小运
+### 起运时间: ${chart.startLuckText}
 ${formatDaLiu()}
 
 ## 💫 特殊格局与特征
@@ -171,9 +179,10 @@ ${chart.specialPatterns ? chart.specialPatterns.map(p => `- ${p.name}: ${p.descr
 3. 情绪健康维护
 
 ### 📈 七、大运流年精解
-1. **当前大运分析**
-2. **未来三年流年运势**（给出具体建议）
-3. **人生关键节点**（结合大运转折点）
+1. **童限小运分析** (如有，简述童年运势)
+2. **当前大运分析**
+3. **未来三年流年运势**（给出具体建议）
+4. **人生关键节点**（结合大运转折点）
 
 ### 🌈 八、开运指导
 1. **方位吉凶**: 有利发展的方位
