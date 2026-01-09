@@ -662,47 +662,60 @@ export const calculateBazi = (profile: UserProfile): BaziChart => {
   const dateParts = profile.birthDate.split('-').map(Number);
   const timeParts = profile.birthTime.split(':').map(Number);
   
-  // --- 1. Standard Time Object (For Year, Month, Luck, Lunar Date) ---
+  // --- 1. Standard Time Object (for Luck Cycle calculation) ---
   const solarStd = Solar.fromYmdHms(dateParts[0], dateParts[1], dateParts[2], timeParts[0], timeParts[1], 0);
-  const lunarStd = solarStd.getLunar();
-  const baziStd = lunarStd.getEightChar();
-  baziStd.setSect(1);
-
-  // --- 2. True Solar Time Object (For Day, Hour) ---
-  let solarTST = solarStd;
-  let originalTimeStr = `${dateParts[0]}-${dateParts[1]}-${dateParts[2]} ${timeParts[0]}:${timeParts[1]}`;
+  
+  // --- 2. Determine Definitive Solar Time for Pillars ---
+  let definitiveSolar = solarStd;
+  const originalTimeStr = `${dateParts[0]}-${dateParts[1]}-${dateParts[2]} ${timeParts[0]}:${timeParts[1]}`;
   let solarTimeStr = '';
   let solarTimeData = undefined;
 
+  console.log(`[BaziCalc] Profile "${profile.name}" | Input: ${profile.birthDate} ${profile.birthTime} | TST: ${profile.isSolarTime} | Lon: ${profile.longitude}`);
+
   if (profile.isSolarTime && profile.longitude) {
-      const stdDate = new Date(Date.UTC(dateParts[0], dateParts[1]-1, dateParts[2], timeParts[0], timeParts[1]));
-      const tstDate = calculateTrueSolarTime(stdDate, profile.longitude);
-      
-      solarTST = Solar.fromYmdHms(
-        tstDate.getUTCFullYear(), 
-        tstDate.getUTCMonth() + 1, 
-        tstDate.getUTCDate(), 
-        tstDate.getUTCHours(), 
-        tstDate.getUTCMinutes(), 
-        tstDate.getUTCSeconds()
-      );
-      
-      solarTimeStr = `${tstDate.getUTCFullYear()}-${tstDate.getUTCMonth()+1}-${tstDate.getUTCDate()} ${tstDate.getUTCHours()}:${tstDate.getUTCMinutes()}`;
-      solarTimeData = { longitude: profile.longitude, city: profile.city || '未知' };
+      try {
+          const stdDate = new Date(Date.UTC(dateParts[0], dateParts[1]-1, dateParts[2], timeParts[0], timeParts[1]));
+          const tstDate = calculateTrueSolarTime(stdDate, profile.longitude);
+          
+          definitiveSolar = Solar.fromYmdHms(
+            tstDate.getUTCFullYear(), 
+            tstDate.getUTCMonth() + 1, 
+            tstDate.getUTCDate(), 
+            tstDate.getUTCHours(), 
+            tstDate.getUTCMinutes(), 
+            tstDate.getUTCSeconds()
+          );
+          
+          solarTimeStr = `${tstDate.getUTCFullYear()}-${tstDate.getUTCMonth()+1}-${tstDate.getUTCDate()} ${tstDate.getUTCHours()}:${tstDate.getUTCMinutes()}`;
+          solarTimeData = { longitude: profile.longitude, city: profile.city || '未知' };
+          console.log(`[BaziCalc] True Solar Time applied. Corrected DateTime: ${solarTimeStr}`);
+      } catch (e) {
+          console.error('[BaziCalc] Error calculating True Solar Time. Falling back to standard time.', e);
+          definitiveSolar = solarStd; // Explicitly fall back
+      }
+  } else {
+      console.log('[BaziCalc] Using Standard Time for pillars.');
   }
 
-  const baziTST = solarTST.getLunar().getEightChar();
-  baziTST.setSect(1);
+  // --- 3. Calculate all pillars from the single definitive source ---
+  const baziPillars = definitiveSolar.getLunar().getEightChar();
+  baziPillars.setSect(1); // Use 23:00-01:00 as Zi hour
 
-  // --- 3. Compose Pillars (Hybrid Approach) ---
-  const yearGan = baziStd.getYearGan();
-  const yearZhi = baziStd.getYearZhi();
-  const monthGan = baziStd.getMonthGan();
-  const monthZhi = baziStd.getMonthZhi();
-  const dayGan = baziTST.getDayGan();
-  const dayZhi = baziTST.getDayZhi();
-  const hourGan = baziTST.getTimeGan();
-  const hourZhi = baziTST.getTimeZhi();
+  const yearGan = baziPillars.getYearGan();
+  const yearZhi = baziPillars.getYearZhi();
+  const monthGan = baziPillars.getMonthGan();
+  const monthZhi = baziPillars.getMonthZhi();
+  const dayGan = baziPillars.getDayGan();
+  const dayZhi = baziPillars.getDayZhi();
+  const hourGan = baziPillars.getTimeGan();
+  const hourZhi = baziPillars.getTimeZhi();
+  
+  if (!dayGan || !dayZhi) {
+      console.error("[BaziCalc] CRITICAL: Day Pillar calculation failed. Result is empty.", { dayGan, dayZhi });
+      throw new Error("日柱计算失败，请检查输入时间是否有效。");
+  }
+  console.log(`[BaziCalc] Final Pillars - Year: ${yearGan}${yearZhi}, Month: ${monthGan}${monthZhi}, Day: ${dayGan}${dayZhi}, Hour: ${hourGan}${hourZhi}`);
 
   const dayMaster = dayGan;
   const dayMasterIdx = getStemIndex(dayMaster);
@@ -729,7 +742,10 @@ export const calculateBazi = (profile: UserProfile): BaziChart => {
   });
   const allShenSha = [yearPillar, monthPillar, dayPillar, hourPillar].flatMap(p => p.shenSha);
   
-  // --- 4. Luck Pillars & Advanced Palaces (from Standard Time) ---
+  // --- 4. Luck Pillars & Advanced Palaces (must use Standard Time) ---
+  const baziStd = solarStd.getLunar().getEightChar();
+  baziStd.setSect(1);
+
   const genderType = profile.gender === 'male' ? 1 : 0;
   const yun = baziStd.getYun(genderType);
   const startYearNum = yun.getStartYear();

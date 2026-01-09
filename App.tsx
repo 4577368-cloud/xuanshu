@@ -480,7 +480,7 @@ const HomeView: React.FC<{ onGenerate: (profile: UserProfile, subTab?: ChartSubT
   };
 
   return (
-    <div className="flex flex-col h-full bg-white p-6 overflow-y-auto">
+    <div className="flex flex-col h-full bg-white p-6 overflow-y-auto pb-24">
        <div className="text-center mb-6 mt-4">
            <div className="w-16 h-16 bg-stone-900 rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-lg transform rotate-3">
                <Compass size={32} className="text-amber-500" />
@@ -1186,26 +1186,37 @@ const App: React.FC = () => {
   const [chart, setChart] = useState<BaziChart | null>(null);
   const [modalData, setModalData] = useState<ModalData | null>(null);
   const [archives, setArchives] = useState<UserProfile[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     setArchives(getArchives());
   }, []);
 
   const handleGenerate = (profile: UserProfile, subTab?: ChartSubTab) => {
-    const newChart = calculateBazi(profile);
-    const updatedArchives = saveArchive(profile);
-    setArchives(updatedArchives);
-    
-    setCurrentProfile(profile);
-    setChart(newChart);
-    setCurrentTab(AppTab.CHART);
+    try {
+        const newChart = calculateBazi(profile);
+        const updatedArchives = saveArchive(profile);
+        setArchives(updatedArchives);
+        
+        setCurrentProfile(profile);
+        setChart(newChart);
+        setCurrentTab(AppTab.CHART);
+    } catch (error) {
+        console.error("Failed to generate Bazi chart:", error);
+        alert(`生成命盘时出错: ${error instanceof Error ? error.message : '未知错误'}`);
+    }
   };
 
   const handleSelectArchive = (profile: UserProfile) => {
-    const newChart = calculateBazi(profile);
-    setCurrentProfile(profile);
-    setChart(newChart);
-    setCurrentTab(AppTab.CHART);
+    try {
+        const newChart = calculateBazi(profile);
+        setCurrentProfile(profile);
+        setChart(newChart);
+        setCurrentTab(AppTab.CHART);
+    } catch (error) {
+        console.error("Failed to generate Bazi chart from archive:", error);
+        alert(`从存档加载命盘时出错: ${error instanceof Error ? error.message : '未知错误'}`);
+    }
   };
 
   const handleSaveReport = (report: string) => {
@@ -1289,6 +1300,13 @@ const App: React.FC = () => {
              chart={chart} 
              onClose={() => setModalData(null)} 
           />
+      )}
+
+      {isLoading && (
+        <div className="fixed inset-0 bg-white/80 backdrop-blur-sm z-[9999] flex flex-col items-center justify-center transition-opacity">
+            <Activity className="animate-spin text-indigo-500" size={48} />
+            <p className="mt-4 text-stone-600 font-medium animate-pulse">AI 排盘中，请稍候...</p>
+        </div>
       )}
     </div>
   );
