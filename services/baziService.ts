@@ -1,6 +1,6 @@
 
-import { BaziChart, GanZhi, LuckPillar, Pillar, UserProfile, HiddenStem, GodStrength, TrendActivation, ShenShaInteraction, BalanceAnalysis, AnnualFortune, PatternAnalysis, InterpretationResult, ModalData, XiaoYun } from '../types';
-import { Solar } from 'lunar-javascript';
+import { BaziChart, GanZhi, LuckPillar, Pillar, UserProfile, HiddenStem, GodStrength, TrendActivation, ShenShaInteraction, BalanceAnalysis, AnnualFortune, PatternAnalysis, InterpretationResult, ModalData, XiaoYun, PillarInterpretation } from '../types';
+import { Solar, Lunar } from 'lunar-javascript';
 import { 
   EARTHLY_BRANCHES, 
   FIVE_ELEMENTS, 
@@ -9,16 +9,13 @@ import {
   LIFE_STAGES_TABLE, 
   NA_YIN, 
   TEN_GODS_MAP, 
-  TWENTY_EIGHT_MANSIONS,
   BRANCH_CLASHES,
-  BRANCH_COMBINES,
-  SHEN_SHA_INTERACTION_RULES,
+  LU_SHEN_MAP,
+  YANG_REN_MAP,
   TIAN_YI_MAP,
   TIAN_DE_MAP,
   YUE_DE_MAP,
   WEN_CHANG_MAP,
-  LU_SHEN_MAP,
-  YANG_REN_MAP,
   JIN_YU_MAP,
   HONG_YAN_MAP,
   XUE_TANG_MAP,
@@ -35,868 +32,426 @@ import {
   HUA_GAI_MAP,
   JIANG_XING_MAP,
   LIU_XIA_MAP,
-  DE_XIU_MAP
+  CHAR_MEANINGS,
+  NA_YIN_DESCRIPTIONS
 } from './constants';
 
 const getElement = (char: string): string => FIVE_ELEMENTS[char] || '土';
 const getStemIndex = (stem: string) => Math.max(0, HEAVENLY_STEMS.indexOf(stem));
 
-// --- Time Correction Logic (True Solar Time) ---
+const getRelation = (origin: string, target: string): '生' | '克' | '同' | '泄' | '耗' => {
+  const map: Record<string, string> = { '木': '火', '火': '土', '土': '金', '金': '水', '水': '木' };
+  const ke: Record<string, string> = { '木': '土', '土': '水', '水': '火', '火': '金', '金': '木' };
+  if (origin === target) return '同';
+  if (map[origin] === target) return '泄';
+  if (map[target] === origin) return '生';
+  if (ke[origin] === target) return '克';
+  return '耗';
+};
+
+const getNaYinElement = (naYin: string): string => naYin.charAt(2);
+
 const calculateTrueSolarTime = (date: Date, longitude: number): Date => {
-    const standardMeridian = 120; // China Standard Time
+    const standardMeridian = 120;
     const longitudeOffsetMinutes = (longitude - standardMeridian) * 4;
-    
-    // Day of Year calculation for Equation of Time
     const startOfYear = new Date(Date.UTC(date.getUTCFullYear(), 0, 0));
     const diff = date.getTime() - startOfYear.getTime();
     const oneDay = 1000 * 60 * 60 * 24;
-    const dayOfYear = Math.floor(diff / oneDay) + 1; // +1 is important
-    
-    // Equation of Time approximation (minutes)
+    const dayOfYear = Math.floor(diff / oneDay) + 1;
     const b = 2 * Math.PI * (dayOfYear - 81) / 365;
     const eotMinutes = 9.87 * Math.sin(2 * b) - 7.53 * Math.cos(b) - 1.5 * Math.sin(b);
-    
-    const totalCorrectionMinutes = longitudeOffsetMinutes + eotMinutes;
-    return new Date(date.getTime() + totalCorrectionMinutes * 60000);
+    return new Date(date.getTime() + (longitudeOffsetMinutes + eotMinutes) * 60000);
 };
 
-// Calculate Ten Gods
 const getShiShen = (dayMasterIdx: number, targetStemIdx: number): string => {
   if (dayMasterIdx < 0 || dayMasterIdx >= 10 || targetStemIdx < 0 || targetStemIdx >= 10) return '';
   return TEN_GODS_MAP[dayMasterIdx][targetStemIdx];
 };
 
-// Calculate Life Stage
-const getLifeStage = (dayMasterIdx: number, branchIdx: number): string => {
-  if (dayMasterIdx < 0 || dayMasterIdx >= 10 || branchIdx < 0 || branchIdx >= 12) return '';
-  return LIFE_STAGES_TABLE[dayMasterIdx][branchIdx];
-};
-
 const createGanZhi = (gan: string, zhi: string, dayMasterGanIndex: number): GanZhi => {
   const ganIndex = getStemIndex(gan);
   const zhiIndex = EARTHLY_BRANCHES.indexOf(zhi);
-  
-  const combination = gan + zhi;
-  const shiShenGan = getShiShen(dayMasterGanIndex, ganIndex);
-
   const hiddenData = HIDDEN_STEMS_DATA[zhi] || [];
-  const hiddenStems: HiddenStem[] = hiddenData.map(item => ({
-    stem: item[0], 
-    type: item[1],
-    powerPercentage: item[2],
-    shiShen: getShiShen(dayMasterGanIndex, getStemIndex(item[0]))
-  }));
-
-  const lifeStage = getLifeStage(dayMasterGanIndex, zhiIndex);
-  const selfLifeStage = getLifeStage(ganIndex, zhiIndex);
-
   return {
-    gan,
-    zhi,
+    gan, zhi,
     ganElement: getElement(gan),
     zhiElement: getElement(zhi),
-    hiddenStems,
-    naYin: NA_YIN[combination] || '未知',
-    shiShenGan,
-    lifeStage,
-    selfLifeStage
+    hiddenStems: hiddenData.map(item => ({
+      stem: item[0], type: item[1], powerPercentage: item[2],
+      shiShen: getShiShen(dayMasterGanIndex, getStemIndex(item[0]))
+    })),
+    naYin: NA_YIN[gan+zhi] || '未知',
+    shiShenGan: getShiShen(dayMasterGanIndex, ganIndex),
+    lifeStage: LIFE_STAGES_TABLE[dayMasterGanIndex][zhiIndex],
+    selfLifeStage: LIFE_STAGES_TABLE[ganIndex][zhiIndex]
+  };
+};
+
+const calculateBalance = (dm: string, pillars: any, counts: Record<string, number>): BalanceAnalysis => {
+  const dmEl = FIVE_ELEMENTS[dm];
+  const monthZhi = pillars.month.ganZhi.zhi;
+  const monthEl = pillars.month.ganZhi.zhiElement;
+  let score = 0;
+  
+  const monthRelation = getRelation(monthEl, dmEl);
+  if (monthRelation === '同') score += 40;
+  else if (monthRelation === '生') score += 35;
+  else if (monthRelation === '泄') score += 10;
+  
+  let supportiveScore = 0;
+  const branches = [pillars.year.ganZhi.zhi, pillars.month.ganZhi.zhi, pillars.day.ganZhi.zhi, pillars.hour.ganZhi.zhi];
+  branches.forEach((zhi) => {
+    const hidden = HIDDEN_STEMS_DATA[zhi] || [];
+    hidden.forEach(([stem, type]) => {
+      const stemEl = getElement(stem);
+      const rel = getRelation(stemEl, dmEl);
+      if (rel === '同' || rel === '生') {
+        let power = (type === '主气') ? 8 : 3;
+        const isClashed = branches.some(other => BRANCH_CLASHES[zhi] === other);
+        if (isClashed) power *= 0.3; 
+        supportiveScore += power;
+      }
+    });
+  });
+  score += Math.min(35, supportiveScore);
+  
+  let stemScore = 0;
+  [pillars.year.ganZhi.gan, pillars.month.ganZhi.gan, pillars.hour.ganZhi.gan].forEach(gan => {
+    const rel = getRelation(getElement(gan), dmEl);
+    if (rel === '同') stemScore += 8;
+    if (rel === '生') stemScore += 7; 
+  });
+  score += Math.min(25, stemScore);
+  
+  const level = score >= 55 ? '身强' : (score <= 42 ? '身弱' : '中和');
+  
+  const order = ['木', '火', '土', '金', '水'];
+  const dmPos = order.indexOf(dmEl);
+  const sheng = order[(dmPos + 1) % 5];
+  const ke = order[(dmPos + 2) % 5];
+  const beiKe = order[(dmPos + 3) % 5];
+  const shengWo = order[(dmPos + 4) % 5];
+
+  let yongShen: string[] = [];
+  let xiShen: string[] = [];
+  let jiShen: string[] = [];
+
+  if (level === '身强') {
+    yongShen = [sheng, ke, beiKe];
+    xiShen = [ke, beiKe];
+    jiShen = [shengWo, dmEl];
+  } else if (level === '身弱') {
+    yongShen = [shengWo, dmEl];
+    xiShen = [shengWo];
+    jiShen = [beiKe, ke, sheng];
+  } else {
+    yongShen = [dmEl];
+    xiShen = [shengWo];
+    jiShen = [beiKe];
+  }
+
+  const tiaoHouMap: Record<string, { yong: string[], advice: string }> = { 
+    '亥': { yong: ['丙'], advice: '冬令水冷，急需丙火调候。' },
+    '子': { yong: ['丙'], advice: '冬令水冷，急需丙火调候。' },
+    '丑': { yong: ['丙'], advice: '冬令水冷，急需丙火调候。' },
+    '巳': { yong: ['癸', '壬'], advice: '夏令火燥，急需水气调候。' },
+    '午': { yong: ['癸', '壬'], advice: '夏令火燥，急需水气调候。' },
+    '未': { yong: ['癸', '壬'], advice: '夏令火燥，急需水气调候。' }
+  };
+  
+  let method: '扶抑' | '调候' | '通关' = '扶抑';
+  let advice = level === '身强' ? "身强宜泄，忌印比。" : "身弱宜扶，喜印比。";
+
+  if (tiaoHouMap[monthZhi]) {
+    method = '调候';
+    const th = tiaoHouMap[monthZhi];
+    th.yong.forEach(el => { if (!yongShen.includes(el)) yongShen.unshift(el); });
+    advice = th.advice + " " + advice;
+  }
+
+  return {
+    dayMasterStrength: { score, level, description: `得分:${score.toFixed(1)} (${level})` },
+    yongShen, xiShen, jiShen, method, advice
+  };
+};
+
+const calculatePattern = (dm: string, pillars: any, balance: BalanceAnalysis, counts: Record<string, number>): PatternAnalysis => {
+  const monthZhi = pillars.month.ganZhi.zhi;
+  const dmIdx = getStemIndex(dm);
+  const revealedStems = [pillars.year.ganZhi.gan, pillars.month.ganZhi.gan, pillars.hour.ganZhi.gan];
+  const hidden = pillars.month.ganZhi.hiddenStems;
+  const dmEl = FIVE_ELEMENTS[dm];
+  if (counts[dmEl] >= 6 && balance.dayMasterStrength.score > 65) {
+    return { name: `从旺格(${dmEl})`, type: '外格', isEstablished: true, level: '上等', keyFactors: { beneficial: ['气势纯粹'], destructive: ['逢冲'] }, description: "全局五行气势极强。" };
+  }
+  if (monthZhi === LU_SHEN_MAP[dm]) return { name: "建禄格", type: '正格', isEstablished: true, level: '中等', keyFactors: { beneficial: ['财官透达'], destructive: ['比劫夺财'] }, description: "月令建禄。" };
+  
+  const benQi = hidden.find(h => h.type === '主气');
+  const zhongYuStems = hidden.filter(h => h.type !== '主气').filter(h => revealedStems.includes(h.stem));
+  let finalStem = (benQi && revealedStems.includes(benQi.stem)) ? benQi.stem : (zhongYuStems[0]?.stem || benQi?.stem || '');
+  const god = getShiShen(dmIdx, getStemIndex(finalStem)) || "偏官";
+  return {
+    name: (['比肩', '劫财'].includes(god) ? '月劫' : god) + "格",
+    type: '正格', isEstablished: true, level: '中等',
+    keyFactors: { beneficial: ['用神有力'], destructive: ['忌神干扰'] },
+    description: `以月令${monthZhi}定格。`
+  };
+};
+
+// --- Pillar Interpretation Functions ---
+
+const getGanSymbolism = (gan: string) => CHAR_MEANINGS[gan] || '';
+const getNaYinSymbolism = (naYin: string) => NA_YIN_DESCRIPTIONS[naYin] || '';
+const getShiShenBrief = (ss: string) => {
+    const map: Record<string, string> = {
+        '比肩': '竞争、合作、自我', '劫财': '破财、冲动、义气', '食神': '才华、享受、口福',
+        '伤官': '傲慢、叛逆、名声', '正财': '勤勉、稳定、妻子', '偏财': '投机、横财、父亲',
+        '正官': '地位、自律、丈夫', '七杀': '压力、霸气、权威', '正印': '贵人、仁慈、学问',
+        '偏印': '领悟、孤独、偏门'
+    };
+    return map[ss] || '';
+};
+
+const isSignificantHidden = (h: HiddenStem, revealed: string[]) => h.type === '主气' || revealed.includes(h.stem);
+
+export const interpretDayPillar = (chart: BaziChart): PillarInterpretation => {
+  const pillar = chart.pillars.day;
+  const gz = pillar.ganZhi;
+  const revealedStems = [chart.pillars.year.ganZhi.gan, chart.pillars.month.ganZhi.gan, chart.pillars.hour.ganZhi.gan];
+  const coreSymbolism = getGanSymbolism(gz.gan);
+  let hiddenDynamics = '';
+  const significantHiddens = gz.hiddenStems.filter(h => isSignificantHidden(h, revealedStems));
+  if (significantHiddens.length > 0) {
+    const parts = significantHiddens.map(h => `${h.stem}（${h.shiShen}，${getShiShenBrief(h.shiShen)}）`);
+    hiddenDynamics = `地支藏干 ${parts.join('；')}，深刻影响内在性格与潜能。`;
+  }
+  const naYinInfluence = getNaYinSymbolism(gz.naYin);
+  let lifeStageEffect = '';
+  if (gz.lifeStage) {
+    const baseDesc = gz.lifeStage;
+    if (['死', '绝', '病'].includes(gz.lifeStage) && chart.balance.dayMasterStrength.level === '身弱') {
+      lifeStageEffect = `日主处${baseDesc}地且身弱，能量内敛，需防行动力不足或思虑过重。`;
+    } else {
+      lifeStageEffect = `日主处${baseDesc}地，此为蓄势待发之象，非衰绝之兆。`;
+    }
+  }
+  const descMap: Record<string, string> = {
+    '天乙贵人': '一生多逢凶化吉，得长辈或异性贵人助',
+    '文昌贵人': '聪明好学，利考试、文职、艺术',
+    '禄神': '自我实现力强，衣食无忧',
+    '羊刃': '精力旺盛，但易冲动争斗（女命不利婚姻）',
+    '红鸾': '异性缘佳，感情活跃',
+    '华盖': '艺术玄学天赋，略带孤高',
+    '驿马': '主变动、远行、奔波求财',
+    '孤辰': '内心孤独，喜独处思考'
+  };
+  const shenShaEffects = pillar.shenSha.map(star => `${star}：${descMap[star] || '带来特殊机遇或挑战'}`);
+  const roleInDestiny = '日柱代表命主自身，是八字核心，反映性格、婚姻、健康及人生主线。';
+  const summaryParts = [coreSymbolism, hiddenDynamics, naYinInfluence, lifeStageEffect, ...shenShaEffects].filter(Boolean);
+  const integratedSummary = summaryParts.length ? `日柱综合：${summaryParts.join(' ')}。` : '信息不足，暂无法深度解读。';
+
+  return { pillarName: '日柱', coreSymbolism, hiddenDynamics, naYinInfluence, lifeStageEffect, shenShaEffects, roleInDestiny, integratedSummary };
+};
+
+export const interpretMonthPillar = (chart: BaziChart): PillarInterpretation => {
+  const pillar = chart.pillars.month;
+  const gz = pillar.ganZhi;
+  const coreSymbolism = getGanSymbolism(gz.gan);
+  const naYinInfluence = getNaYinSymbolism(gz.naYin);
+  const roleInDestiny = '月柱为提纲，主青年运势、事业方向、兄弟姐妹及社会环境，是格局成败的关键。';
+  let patternInsight = '';
+  if (chart.pattern.isEstablished) {
+    patternInsight = `此柱构成${chart.pattern.name}，${chart.pattern.description}。`;
+  } else if (chart.pattern.keyFactors.destructive.length > 0) {
+    patternInsight = `本可成${chart.pattern.name}，但因${chart.pattern.keyFactors.destructive.join('、')}而破格。`;
+  }
+  const lifeStageEffect = `月令处${gz.lifeStage}，主导全局五行旺衰。`;
+  const shenShaEffects = pillar.shenSha.map(s => `${s}：月柱见${s}，主青年时期相关影响`);
+  const integratedSummary = [`月柱${gz.gan}${gz.zhi}（${gz.naYin}）`, coreSymbolism, patternInsight, naYinInfluence, lifeStageEffect].filter(Boolean).join(' ');
+  return { pillarName: '月柱', coreSymbolism, hiddenDynamics: '', naYinInfluence, lifeStageEffect, shenShaEffects, roleInDestiny, integratedSummary };
+};
+
+export const interpretYearPillar = (chart: BaziChart): PillarInterpretation => {
+  const pillar = chart.pillars.year;
+  const gz = pillar.ganZhi;
+  const coreSymbolism = getGanSymbolism(gz.gan);
+  const naYinInfluence = getNaYinSymbolism(gz.naYin);
+  const roleInDestiny = '年柱代表祖业、父母、童年环境及社会背景，影响人生起点与根基。';
+  let parentInsight = '';
+  const yearGanShiShen = gz.shiShenGan;
+  if (['正财', '偏财'].includes(yearGanShiShen)) {
+    parentInsight = `年干为${yearGanShiShen}，通常代表父亲缘分较显。`;
+  } else if (['正印', '偏印'].includes(yearGanShiShen)) {
+    parentInsight = `年干为${yearGanShiShen}，通常代表母亲缘分较显。`;
+  }
+  const lifeStageEffect = `年柱处${gz.lifeStage}，反映家族气运传承。`;
+  const shenShaEffects = pillar.shenSha.map(s => `${s}：年柱见${s}，主祖上或早年影响`);
+  const integratedSummary = [`年柱${gz.gan}${gz.zhi}（${gz.naYin}）`, coreSymbolism, parentInsight, naYinInfluence, lifeStageEffect].filter(Boolean).join(' ');
+  return { pillarName: '年柱', coreSymbolism, hiddenDynamics: '', naYinInfluence, lifeStageEffect, shenShaEffects, roleInDestiny, integratedSummary };
+};
+
+export const interpretHourPillar = (chart: BaziChart): PillarInterpretation => {
+  const pillar = chart.pillars.hour;
+  const gz = pillar.ganZhi;
+  const coreSymbolism = getGanSymbolism(gz.gan);
+  const naYinInfluence = getNaYinSymbolism(gz.naYin);
+  const roleInDestiny = '时柱代表子女、晚年运势、技术才能及最终成就，又称“归宿宫”。';
+  let childrenInsight = '';
+  const hourGanShiShen = gz.shiShenGan;
+  if (chart.gender === 'male') {
+    if (['正官', '七杀'].includes(hourGanShiShen)) childrenInsight = '时干为官杀，主子女性别或管教严格。';
+    if (['食神', '伤官'].includes(hourGanShiShen)) childrenInsight = '时干为食伤，主子女聪慧或有才华。';
+  } else {
+    if (['食神', '伤官'].includes(hourGanShiShen)) childrenInsight = '时干为食伤，主子女缘分明显。';
+    if (['正官', '七杀'].includes(hourGanShiShen)) childrenInsight = '时干为官杀，主夫缘或事业收尾。';
+  }
+  const lifeStageEffect = `时柱处${gz.lifeStage}，预示晚年状态与成果。`;
+  const shenShaEffects = pillar.shenSha.map(s => `${s}：时柱见${s}，主晚年或子女相关影响`);
+  const integratedSummary = [`时柱${gz.gan}${gz.zhi}（${gz.naYin}）`, coreSymbolism, childrenInsight, naYinInfluence, lifeStageEffect].filter(Boolean).join(' ');
+  return { pillarName: '时柱', coreSymbolism, hiddenDynamics: '', naYinInfluence, lifeStageEffect, shenShaEffects, roleInDestiny, integratedSummary };
+};
+
+// --- Core Service Functions ---
+
+export const calculateBazi = (profile: UserProfile): BaziChart => {
+  const d = profile.birthDate.split('-').map(Number);
+  const t = profile.birthTime.split(':').map(Number);
+  let solar = Solar.fromYmdHms(d[0], d[1], d[2], t[0], t[1], 0);
+  if (profile.isSolarTime && profile.longitude) {
+      const std = new Date(Date.UTC(d[0], d[1]-1, d[2], t[0], t[1]));
+      const tst = calculateTrueSolarTime(std, profile.longitude);
+      solar = Solar.fromYmdHms(tst.getUTCFullYear(), tst.getUTCMonth() + 1, tst.getUTCDate(), tst.getUTCHours(), tst.getUTCMinutes(), 0);
+  }
+  const lunar = solar.getLunar();
+  const eightChar = lunar.getEightChar();
+  eightChar.setSect(1);
+  const dm = eightChar.getDayGan();
+  const dmIdx = getStemIndex(dm);
+  
+  const getKW = (gan: string, zhi: string) => {
+    const kwIdx = (EARTHLY_BRANCHES.indexOf(zhi) - getStemIndex(gan) + 12) % 12;
+    const kwMap: Record<number, string[]> = { 0: ['戌', '亥'], 10: ['申', '酉'], 8: ['午', '未'], 6: ['辰', '巳'], 4: ['寅', '卯'], 2: ['子', '丑'] };
+    return kwMap[kwIdx] || [];
+  };
+  const dayKW = getKW(eightChar.getDayGan(), eightChar.getDayZhi());
+  const yearKW = getKW(eightChar.getYearGan(), eightChar.getYearZhi());
+
+  const pillarsRaw = {
+    year: { name: '年柱', ganZhi: createGanZhi(eightChar.getYearGan(), eightChar.getYearZhi(), dmIdx) },
+    month: { name: '月柱', ganZhi: createGanZhi(eightChar.getMonthGan(), eightChar.getMonthZhi(), dmIdx) },
+    day: { name: '日柱', ganZhi: createGanZhi(eightChar.getDayGan(), eightChar.getDayZhi(), dmIdx) },
+    hour: { name: '时柱', ganZhi: createGanZhi(eightChar.getTimeGan(), eightChar.getTimeZhi(), dmIdx) }
+  };
+
+  const pillars: any = {};
+  Object.keys(pillarsRaw).forEach(k => {
+    const p = pillarsRaw[k as keyof typeof pillarsRaw];
+    const kw = dayKW.includes(p.ganZhi.zhi) || yearKW.includes(p.ganZhi.zhi);
+    pillars[k] = { ...p, shenSha: [], kongWang: kw };
+  });
+
+  const counts: Record<string, number> = { '金': 0, '木': 0, '水': 0, '火': 0, '土': 0 };
+  Object.values(pillars).forEach((p: any) => { counts[p.ganZhi.ganElement]++; counts[p.ganZhi.zhiElement]++; });
+  const balance = calculateBalance(dm, pillars, counts);
+  
+  const yun = eightChar.getYun(profile.gender === 'male' ? 1 : 0);
+  const luckPillars: LuckPillar[] = yun.getDaYun().map((dy, i) => {
+    if (i === 0) return null;
+    const gz = dy.getGanZhi();
+    return { index: i, startAge: dy.getStartAge(), startYear: dy.getStartYear(), endYear: dy.getEndYear(), ganZhi: createGanZhi(gz.charAt(0), gz.charAt(1), dmIdx) };
+  }).filter(Boolean) as LuckPillar[];
+
+  const xiaoYun: XiaoYun[] = [];
+  const startAge = 1;
+  const startYear = d[0];
+  const isForward = (getStemIndex(eightChar.getYearGan()) % 2 === 0) === (profile.gender === 'male');
+  let currentGanIdx = getStemIndex(eightChar.getTimeGan());
+  let currentZhiIdx = EARTHLY_BRANCHES.indexOf(eightChar.getTimeZhi());
+
+  for (let age = startAge; age <= (luckPillars[0]?.startAge || 10); age++) {
+    const step = isForward ? 1 : -1;
+    currentGanIdx = (currentGanIdx + step + 10) % 10;
+    currentZhiIdx = (currentZhiIdx + step + 12) % 12;
+    xiaoYun.push({
+      age,
+      year: startYear + age - 1,
+      ganZhi: createGanZhi(HEAVENLY_STEMS[currentGanIdx], EARTHLY_BRANCHES[currentZhiIdx], dmIdx)
+    });
+  }
+
+  return {
+    profileId: profile.id, gender: profile.gender, dayMaster: dm, dayMasterElement: FIVE_ELEMENTS[dm],
+    pillars: pillars as any, mingGong: eightChar.getMingGong(), shenGong: eightChar.getShenGong(),
+    taiYuan: eightChar.getTaiYuan(), taiXi: '暂缺', wuxingCounts: counts,
+    luckPillars, xiaoYun, startLuckText: `起运：${yun.getStartYear()}岁${yun.getStartMonth()}月`,
+    godStrength: [], shenShaInteractions: [], balance, pattern: calculatePattern(dm, pillars, balance, counts),
+    originalTime: solar.toYmdHms(), mangPai: []
   };
 };
 
 export const getGanZhiForYear = (year: number, dayMaster: string): GanZhi => {
-  const offset = (year - 1984) % 60;
-  const idx = (offset + 60) % 60; 
-  
-  const ganIndex = idx % 10;
-  const zhiIndex = idx % 12;
-  const dayMasterIndex = Math.max(0, HEAVENLY_STEMS.indexOf(dayMaster));
-  
-  const gan = HEAVENLY_STEMS[ganIndex];
-  const zhi = EARTHLY_BRANCHES[zhiIndex];
-  
-  return createGanZhi(gan, zhi, dayMasterIndex);
-};
-
-// --- Comprehensive Shen Sha Logic ---
-interface ShenShaContext {
-    pillarName: string;
-    gan: string;
-    zhi: string;
-    dayGan: string;
-    dayZhi: string;
-    yearGan: string;
-    yearZhi: string;
-    monthZhi: string;
-    gz: string;
-}
-
-type ShenShaRule = (ctx: ShenShaContext) => string | null;
-
-const getBranchDistance = (b1: string, b2: string) => {
-    const i1 = EARTHLY_BRANCHES.indexOf(b1);
-    const i2 = EARTHLY_BRANCHES.indexOf(b2);
-    return (i2 - i1 + 12) % 12;
-}
-
-const SHEN_SHA_RULES: ShenShaRule[] = [
-    (ctx) => TIAN_YI_MAP[ctx.dayGan]?.includes(ctx.zhi) ? '天乙贵人' : null,
-    (ctx) => {
-        const taiJiSet: Record<string, string[]> = {
-            '甲': ['子', '午'], '乙': ['子', '午'],
-            '丙': ['卯', '酉'], '丁': ['卯', '酉'],
-            '戊': ['辰', '戌', '丑', '未'], '己': ['辰', '戌', '丑', '未'],
-            '庚': ['寅', '亥'], '辛': ['寅', '亥'],
-            '壬': ['巳', '申'], '癸': ['巳', '申']
-        };
-        return taiJiSet[ctx.dayGan]?.includes(ctx.zhi) ? '太极贵人' : null;
-    },
-    (ctx) => {
-        const tdVal = TIAN_DE_MAP[ctx.monthZhi];
-        if (!tdVal) return null;
-        if (HEAVENLY_STEMS.includes(tdVal)) return ctx.gan === tdVal ? '天德贵人' : null;
-        return ctx.zhi === tdVal ? '天德贵人' : null;
-    },
-    (ctx) => YUE_DE_MAP[ctx.monthZhi] === ctx.gan ? '月德贵人' : null,
-    (ctx) => WEN_CHANG_MAP[ctx.dayGan] === ctx.zhi ? '文昌贵人' : null,
-    (ctx) => {
-        const fuXingMap: Record<string, string[]> = {
-            '甲': ['寅', '子'], '乙': ['卯', '丑'], '丙': ['子', '戌'], '丁': ['酉', '亥'],
-            '戊': ['申'], '己': ['未'], '庚': ['午'], '辛': ['巳'], '壬': ['辰'], '癸': ['卯'] 
-        };
-        return fuXingMap[ctx.dayGan]?.includes(ctx.zhi) ? '福星贵人' : null;
-    },
-    (ctx) => {
-        const dxVal = DE_XIU_MAP[ctx.monthZhi];
-        if (!dxVal) return null;
-        const [deStems, xiuStems] = dxVal;
-        return (deStems.includes(ctx.gan) || xiuStems.includes(ctx.gan)) ? '德秀贵人' : null;
-    },
-    (ctx) => {
-        const guoYinMap: Record<string, string> = {
-            '甲': '戌', '乙': '亥', '丙': '丑', '丁': '寅', '戊': '丑',
-            '己': '寅', '庚': '辰', '辛': '巳', '壬': '未', '癸': '申'
-        };
-        return guoYinMap[ctx.dayGan] === ctx.zhi ? '国印贵人' : null;
-    },
-    (ctx) => JIANG_XING_MAP[ctx.yearZhi] === ctx.zhi || JIANG_XING_MAP[ctx.dayZhi] === ctx.zhi ? '将星' : null,
-    (ctx) => JIN_YU_MAP[ctx.dayGan] === ctx.zhi ? '金舆' : null,
-    (ctx) => TIAN_CHU_MAP[ctx.dayGan] === ctx.zhi ? '天厨贵人' : null,
-    (ctx) => XUE_TANG_MAP[ctx.dayGan] === ctx.zhi ? '学堂' : null,
-    (ctx) => CI_GUAN_MAP[ctx.dayGan] === ctx.zhi ? '词馆' : null,
-    (ctx) => {
-        const spring = ['寅', '卯', '辰'].includes(ctx.monthZhi);
-        const summer = ['巳', '午', '未'].includes(ctx.monthZhi);
-        const autumn = ['申', '酉', '戌'].includes(ctx.monthZhi);
-        const winter = ['亥', '子', '丑'].includes(ctx.monthZhi);
-        if (ctx.pillarName === '日柱') {
-            if (spring && ctx.gz === '戊寅') return '天赦';
-            if (summer && ctx.gz === '甲午') return '天赦';
-            if (autumn && ctx.gz === '戊申') return '天赦';
-            if (winter && ctx.gz === '甲子') return '天赦';
-        }
-        return null;
-    },
-    (ctx) => {
-        const hongLuanBranch = HONG_LUAN_MAP[ctx.yearZhi];
-        return BRANCH_CLASHES[hongLuanBranch] === ctx.zhi ? '天喜' : null;
-    },
-    (ctx) => HONG_LUAN_MAP[ctx.yearZhi] === ctx.zhi ? '红鸾' : null,
-    (ctx) => getBranchDistance(ctx.yearZhi, ctx.zhi) === 8 ? '龙德' : null,
-    (ctx) => BRANCH_COMBINES[ctx.monthZhi] === ctx.zhi ? '解神' : null,
-
-    // 💔 Romance
-    (ctx) => (XIAN_CHI_MAP[ctx.yearZhi] === ctx.zhi || XIAN_CHI_MAP[ctx.dayZhi] === ctx.zhi) ? '咸池(桃花)' : null,
-    (ctx) => HONG_YAN_MAP[ctx.dayGan] === ctx.zhi ? '红艳煞' : null,
-    (ctx) => {
-        const guLuanDays = ['甲寅', '乙巳', '丙午', '丁巳', '戊申', '戊午', '辛亥', '壬子'];
-        return (ctx.pillarName === '日柱' && guLuanDays.includes(ctx.gz)) ? '孤鸾煞' : null;
-    },
-    (ctx) => {
-        const ycycDays = ['丙午', '丙子', '丁未', '丁丑', '戊申', '戊寅', '辛酉', '辛卯', '壬戌', '壬辰', '癸巳', '癸亥'];
-        return (ctx.pillarName === '日柱' && ycycDays.includes(ctx.gz)) ? '阴差阳错' : null;
-    },
-    (ctx) => {
-        const spring = ['寅', '卯', '辰'].includes(ctx.monthZhi);
-        const summer = ['巳', '午', '未'].includes(ctx.monthZhi);
-        const autumn = ['申', '酉', '戌'].includes(ctx.monthZhi);
-        const winter = ['亥', '子', '丑'].includes(ctx.monthZhi);
-        if (ctx.pillarName === '日柱') {
-            const springFei = ['庚申', '辛酉'];
-            const summerFei = ['壬子', '癸亥'];
-            const autumnFei = ['甲寅', '乙卯'];
-            const winterFei = ['丙午', '丁巳'];
-            if (spring && springFei.includes(ctx.gz)) return '四废';
-            if (summer && summerFei.includes(ctx.gz)) return '四废';
-            if (autumn && autumnFei.includes(ctx.gz)) return '四废';
-            if (winter && winterFei.includes(ctx.gz)) return '四废';
-        }
-        return null;
-    },
-    (ctx) => (ctx.pillarName === '时柱' && (XIAN_CHI_MAP[ctx.yearZhi] === ctx.zhi || XIAN_CHI_MAP[ctx.dayZhi] === ctx.zhi)) ? '墙外桃花' : null,
-
-    // 🐎 Travel/Change
-    (ctx) => (YI_MA_MAP[ctx.yearZhi] === ctx.zhi || YI_MA_MAP[ctx.dayZhi] === ctx.zhi) ? '驿马' : null,
-    (ctx) => (JIE_SHA_MAP[ctx.yearZhi] === ctx.zhi || JIE_SHA_MAP[ctx.dayZhi] === ctx.zhi) ? '劫煞' : null,
-    (ctx) => (ZAI_SHA_MAP[ctx.yearZhi] === ctx.zhi || ZAI_SHA_MAP[ctx.dayZhi] === ctx.zhi) ? '灾煞' : null,
-    (ctx) => (WANG_SHEN_MAP[ctx.yearZhi] === ctx.zhi || WANG_SHEN_MAP[ctx.dayZhi] === ctx.zhi) ? '亡神' : null,
-    (ctx) => {
-        const isXianChi = XIAN_CHI_MAP[ctx.yearZhi] === ctx.zhi || XIAN_CHI_MAP[ctx.dayZhi] === ctx.zhi;
-        const isYiMa = YI_MA_MAP[ctx.yearZhi] === ctx.zhi || YI_MA_MAP[ctx.dayZhi] === ctx.zhi;
-        return (isXianChi && isYiMa) ? '桃花煞' : null;
-    },
-
-    // 💰 Wealth/Career
-    (ctx) => LU_SHEN_MAP[ctx.dayGan] === ctx.zhi ? '禄神' : null,
-    (ctx) => YANG_REN_MAP[ctx.dayGan] === ctx.zhi ? '羊刃' : null,
-    (ctx) => {
-        const yangRenZhi = YANG_REN_MAP[ctx.dayGan];
-        return BRANCH_CLASHES[yangRenZhi] === ctx.zhi ? '飞刃' : null;
-    },
-    (ctx) => BRANCH_CLASHES[ctx.dayZhi] === ctx.zhi ? '元辰' : null,
-    (ctx) => getBranchDistance(ctx.yearZhi, ctx.zhi) === 2 ? '丧门' : null,
-    (ctx) => getBranchDistance(ctx.yearZhi, ctx.zhi) === 10 ? '吊客' : null,
-    (ctx) => getBranchDistance(ctx.yearZhi, ctx.zhi) === 8 ? '白虎' : null,
-
-    // 🕯️ Solitary/Mystical
-    (ctx) => (HUA_GAI_MAP[ctx.yearZhi] === ctx.zhi || HUA_GAI_MAP[ctx.dayZhi] === ctx.zhi) ? '华盖' : null,
-    (ctx) => GU_CHEN_MAP[ctx.yearZhi] === ctx.zhi ? '孤辰' : null,
-    (ctx) => GUA_SU_MAP[ctx.yearZhi] === ctx.zhi ? '寡宿' : null,
-    (ctx) => {
-        const tianYiMedMap: Record<string, string> = {
-            '寅': '丑', '卯': '寅', '辰': '卯', '巳': '辰', '午': '巳', '未': '午',
-            '申': '未', '酉': '申', '戌': '酉', '亥': '戌', '子': '亥', '丑': '子'
-        };
-        return tianYiMedMap[ctx.monthZhi] === ctx.zhi ? '天医' : null;
-    },
-
-    // ⚔️ Special Patterns
-    (ctx) => (ctx.pillarName === '日柱' && ['壬辰', '庚辰', '庚戌', '戊戌'].includes(ctx.gz)) ? '魁罡' : null,
-    (ctx) => (['时柱', '日柱'].includes(ctx.pillarName) && ['癸酉', '己巳', '乙丑'].includes(ctx.gz)) ? '金神' : null,
-    (ctx) => {
-         const isLu = LU_SHEN_MAP[ctx.dayGan] === ctx.zhi;
-         const isYiMa = YI_MA_MAP[ctx.yearZhi] === ctx.zhi || YI_MA_MAP[ctx.dayZhi] === ctx.zhi;
-         return (isLu && isYiMa) ? '禄马交驰' : null;
-    },
-    (ctx) => {
-        if (ctx.pillarName !== '年柱') {
-            const yearGz = ctx.yearGan + ctx.yearZhi;
-            if (ctx.gz === yearGz) return '伏吟';
-        }
-        return null;
-    },
-    (ctx) => {
-        if (ctx.pillarName !== '年柱') {
-            const yearZhiClash = BRANCH_CLASHES[ctx.yearZhi];
-            const yearGanClashMap: Record<string, string> = {'甲':'庚', '乙':'辛', '丙':'壬', '丁':'癸', '戊':'甲', '己':'乙', '庚':'丙', '辛':'丁', '壬':'戊', '癸':'己'};
-            if (yearGanClashMap[ctx.yearGan] === ctx.gan && yearZhiClash === ctx.zhi) return '反吟';
-        }
-        return null;
-    },
-    (ctx) => {
-        const liuXiuDays = ['丙午', '丁未', '戊子', '己丑', '戊午', '己未'];
-        return (ctx.pillarName === '日柱' && liuXiuDays.includes(ctx.gz)) ? '六秀' : null;
-    },
-
-    // ☠️ Disaster/Inauspicious
-    (ctx) => (ctx.pillarName === '日柱' && ['癸巳', '己亥'].includes(ctx.gz)) ? '腾蛇' : null,
-    (ctx) => (ctx.pillarName === '日柱' && ['丙午', '丁巳'].includes(ctx.gz)) ? '朱雀' : null,
-    (ctx) => (ctx.pillarName === '日柱' && ['壬子', '癸亥'].includes(ctx.gz)) ? '玄武' : null,
-    (ctx) => (ctx.pillarName === '日柱' && ['戊辰', '己丑'].includes(ctx.gz)) ? '勾陈' : null,
-    (ctx) => (ctx.pillarName === '日柱' && ctx.gz === '癸巳') ? '腾蛇缠身' : null,
-    (ctx) => {
-        const xueRenMap: Record<string, string> = {
-            '子': '戌', '丑': '酉', '寅': '申', '卯': '未', '辰': '午', '巳': '巳',
-            '午': '辰', '未': '卯', '申': '寅', '酉': '丑', '戌': '子', '亥': '亥'
-        };
-        return xueRenMap[ctx.yearZhi] === ctx.zhi ? '血刃' : null;
-    },
-    (ctx) => LIU_XIA_MAP[ctx.dayGan] === ctx.zhi ? '流霞' : null,
-    (ctx) => {
-        const shiE = ['甲辰', '乙巳', '丙申', '丁亥', '戊戌', '己丑', '庚辰', '辛巳', '壬申', '癸亥'];
-        return (ctx.pillarName === '日柱' && shiE.includes(ctx.gz)) ? '十恶大败' : null;
-    },
-    (ctx) => {
-        const baZhuan = ['甲寅', '乙卯', '丁未', '戊戌', '己未', '庚申', '辛酉', '癸丑'];
-        return (ctx.pillarName === '日柱' && baZhuan.includes(ctx.gz)) ? '八专' : null;
-    },
-    (ctx) => {
-        const jiuChou = ['壬子', '壬午', '戊子', '戊午', '己酉', '己卯', '乙卯', '乙酉', '辛卯', '辛酉'];
-        return (ctx.pillarName === '日柱' && jiuChou.includes(ctx.gz)) ? '九丑' : null;
-    },
-    (ctx) => {
-        const d = getBranchDistance(ctx.yearZhi, ctx.zhi);
-        return (d === 2 || d === 10) ? '隔角煞' : null;
-    }
-];
-
-const calculateShenShaForPillar = (
-    pillarName: string,
-    gan: string,
-    zhi: string,
-    dayGan: string,
-    dayZhi: string,
-    yearZhi: string,
-    monthZhi: string,
-    yearGan: string
-): string[] => {
-    if (!dayGan || !zhi) return [];
-
-    const ctx: ShenShaContext = {
-        pillarName,
-        gan,
-        zhi,
-        dayGan,
-        dayZhi,
-        yearGan,
-        yearZhi,
-        monthZhi,
-        gz: gan + zhi
-    };
-
-    const results: string[] = [];
-    for (const rule of SHEN_SHA_RULES) {
-        const result = rule(ctx);
-        if (result) results.push(result);
-    }
-
-    return Array.from(new Set(results));
-};
-
-const calculateGodStrength = (dayMasterIdx: number, pillars: Pillar[]): GodStrength[] => {
-  const godList = [
-    '比肩', '劫财', '食神', '伤官', 
-    '偏财', '正财', '七杀', '正官', 
-    '偏印', '正印'
-  ];
-
-  const monthPillar = pillars.find(p => p.name === '月柱');
-  const monthBranchElement = monthPillar?.ganZhi.zhiElement || '土';
-
-  return godList.map(godName => {
-    let score = 0;
-    const tags: string[] = [];
-    const targetStemIdx = TEN_GODS_MAP[dayMasterIdx].indexOf(godName);
-    const godElement = FIVE_ELEMENTS[HEAVENLY_STEMS[targetStemIdx]] || '土';
-
-    if (godElement === monthBranchElement) score += 30; 
-    else score += 5;
-
-    pillars.forEach(p => {
-        if (p.ganZhi.shiShenGan === godName) {
-            score += 10;
-        }
-        const foundStem = p.ganZhi.hiddenStems.find(h => h.shiShen === godName);
-        if (foundStem) {
-             score += foundStem.type === '主气' ? 20 : 5;
-        }
-    });
-
-    const finalScore = Math.min(Math.round(score), 100);
-    let level = '弱';
-    if (finalScore >= 60) level = '强';
-    else if (finalScore >= 30) level = '中';
-
-    return {
-        name: godName,
-        element: godElement,
-        score: finalScore, 
-        level,
-        tags
-    };
-  });
-};
-
-const calculateBalance = (
-    dayMaster: string,
-    dayMasterElement: string,
-    pillars: { year: Pillar, month: Pillar, day: Pillar, hour: Pillar },
-    counts: Record<string, number>
-): BalanceAnalysis => {
-    let score = 0;
-    const descriptions: string[] = [];
-    const monthBranch = pillars.month.ganZhi.zhi;
-    const monthElement = pillars.month.ganZhi.zhiElement;
-    
-    const ELEMENT_PRODUCE: Record<string, string> = { '木': '火', '火': '土', '土': '金', '金': '水', '水': '木' };
-    const ELEMENT_PRODUCED_BY: Record<string, string> = { '火': '木', '土': '火', '金': '土', '水': '金', '木': '水' };
-    const ELEMENT_CONTROL: Record<string, string> = { '木': '土', '土': '水', '水': '火', '火': '金', '金': '木' };
-    const ELEMENT_CONTROLLED_BY: Record<string, string> = { '土': '木', '水': '土', '火': '水', '金': '火', '木': '金' };
-
-    if (monthElement === dayMasterElement) { score += 2; descriptions.push("得令"); } 
-    else if (ELEMENT_PRODUCE[monthElement] === dayMasterElement) { score += 2; descriptions.push("得令(印)"); }
-
-    let rootScore = 0;
-    [pillars.year, pillars.month, pillars.day, pillars.hour].forEach(p => {
-        const mainQi = p.ganZhi.hiddenStems.find(h => h.type === '主气');
-        if (mainQi) {
-            const el = FIVE_ELEMENTS[mainQi.stem];
-            if (el === dayMasterElement || ELEMENT_PRODUCE[el] === dayMasterElement) rootScore += 1.5;
-        }
-        const subQis = p.ganZhi.hiddenStems.filter(h => h.type !== '主气');
-        subQis.forEach(sq => {
-             const el = FIVE_ELEMENTS[sq.stem];
-             if (el === dayMasterElement || ELEMENT_PRODUCE[el] === dayMasterElement) rootScore += 0.5;
-        });
-    });
-    if (rootScore > 0) { score += rootScore; descriptions.push("得地"); }
-
-    let stemScore = 0;
-    [pillars.year, pillars.month, pillars.hour].forEach(p => {
-        const el = p.ganZhi.ganElement;
-        if (el === dayMasterElement || ELEMENT_PRODUCE[el] === dayMasterElement) stemScore += 1;
-    });
-    if (stemScore > 0) { score += stemScore; descriptions.push("得助"); }
-
-    let level: '身强' | '身弱' | '中和' = '中和';
-    if (score >= 5.5) level = '身强';
-    else if (score < 3.5) level = '身弱';
-    
-    const isWinter = ['亥', '子', '丑'].includes(monthBranch);
-    const isSummer = ['巳', '午', '未'].includes(monthBranch);
-    let yongShen: string[] = [];
-    let xiShen: string[] = [];
-    let jiShen: string[] = [];
-    let method: '调候' | '扶抑' | '通关' = '扶抑';
-    let advice = '';
-    const hasFire = counts['火'] > 0;
-    const hasWater = counts['水'] > 0;
-
-    if (isWinter && !hasFire) {
-        method = '调候'; yongShen = ['火']; xiShen = ['木']; jiShen = ['水', '金'];
-        advice = '生于冬月，局中金寒水冷，首取火暖局调候，喜木生火。忌金水增寒。';
-    } else if (isSummer && !hasWater) {
-        method = '调候'; yongShen = ['水']; xiShen = ['金']; jiShen = ['火', '木'];
-        advice = '生于夏月，火炎土燥，急需水来滋润降温，喜金生水。忌木火助燃。';
-    } else {
-        const producing = ELEMENT_PRODUCED_BY[dayMasterElement]; 
-        const same = dayMasterElement;
-        const output = ELEMENT_PRODUCE[dayMasterElement];
-        const wealth = ELEMENT_CONTROL[dayMasterElement];
-        const officer = ELEMENT_CONTROLLED_BY[dayMasterElement];
-
-        if (level === '身强') {
-            yongShen = [output, officer]; xiShen = [wealth]; jiShen = [producing, same];
-            advice = `日主${dayMasterElement}身强，宜泄（${output}）、克（${officer}）、耗（${wealth}）。忌印（${producing}）、比（${same}）。`;
-        } else if (level === '身弱') {
-            yongShen = [producing, same]; xiShen = []; jiShen = [output, wealth, officer];
-            advice = `日主${dayMasterElement}身弱，宜印（${producing}）生扶、比劫（${same}）帮身。忌食伤（${output}）、财（${wealth}）、官杀（${officer}）。`;
-        } else {
-             advice = `日主${dayMasterElement}中和，五行流通为贵，视大运流年补偏救弊。`;
-             yongShen = [output, wealth]; jiShen = [officer];
-        }
-    }
-
-    return {
-        dayMasterStrength: { score, level, description: descriptions.join('、') || '失令失地' },
-        yongShen: Array.from(new Set(yongShen)),
-        xiShen: Array.from(new Set(xiShen)),
-        jiShen: Array.from(new Set(jiShen)),
-        method,
-        advice
-    };
-};
-
-const calculatePattern = (
-    dm: string,
-    dmElement: string,
-    monthPillar: Pillar,
-    yearPillar: Pillar,
-    hourPillar: Pillar
-): PatternAnalysis => {
-    const monthBranch = monthPillar.ganZhi.zhi;
-    const revealedStems = [yearPillar.ganZhi.gan, monthPillar.ganZhi.gan, hourPillar.ganZhi.gan];
-    const monthHiddenStems = monthPillar.ganZhi.hiddenStems;
-    
-    let patternGod: string = '';
-    let patternGodStem: string = '';
-    
-    const sortedHidden = [...monthHiddenStems].sort((a, b) => {
-        const powerA = a.type === '主气' ? 3 : (a.type === '中气' ? 2 : 1);
-        const powerB = b.type === '主气' ? 3 : (b.type === '中气' ? 2 : 1);
-        return powerB - powerA;
-    });
-
-    for (const h of sortedHidden) {
-        if (revealedStems.includes(h.stem)) {
-            patternGod = h.shiShen;
-            patternGodStem = h.stem;
-            break;
-        }
-    }
-
-    if (!patternGod) {
-        const main = monthHiddenStems.find(h => h.type === '主气');
-        if (main) { patternGod = main.shiShen; patternGodStem = main.stem; }
-    }
-
-    const isYangDM = ['甲', '丙', '戊', '庚', '壬'].includes(dm);
-    const luBranch = LU_SHEN_MAP[dm];
-    const yangRenBranch = YANG_REN_MAP[dm]; 
-
-    if (monthBranch === luBranch) patternGod = '建禄';
-    else if (isYangDM && monthBranch === yangRenBranch) patternGod = '月刃';
-
-    let name = patternGod + '格';
-    if (patternGod === '建禄') name = '建禄格';
-    if (patternGod === '月刃') name = '月刃格';
-    if (patternGod === '比肩') name = '建禄格'; 
-    if (patternGod === '劫财') name = isYangDM ? '月刃格' : '月劫格';
-
-    let isEstablished = true;
-    let level: '上等' | '中等' | '下等' | '破格' = '中等';
-    const beneficial: string[] = [];
-    const destructive: string[] = [];
-    let desc = `月令为${monthBranch}，日主${dm}，`;
-
-    if (patternGod === '建禄' || patternGod === '月刃') {
-        desc += `月令为禄刃，喜财官。`;
-        level = '中等';
-    } else {
-        desc += `透出${patternGod}，定为${name}。`;
-    }
-
-    if (patternGod === '正官') {
-        if (revealedStems.some(s => getShiShen(getStemIndex(dm), getStemIndex(s)) === '伤官')) {
-            isEstablished = false; level = '破格'; destructive.push('伤官见官'); desc += '见伤官，格局受损。';
-        } else {
-            level = '上等'; beneficial.push('官星清纯');
-        }
-    }
-
-    return {
-        name,
-        type: (patternGod === '建禄' || patternGod === '月刃') ? '外格' : '正格',
-        isEstablished,
-        level,
-        keyFactors: { beneficial, destructive },
-        description: desc
-    };
-};
-
-export const calculateAnnualTrend = (chart: BaziChart, year: number): TrendActivation[] => {
-    const annualGanZhi = getGanZhiForYear(year, chart.dayMaster);
-    const activations: TrendActivation[] = [];
-    const pillars = [chart.pillars.year, chart.pillars.month, chart.pillars.day, chart.pillars.hour];
-    pillars.forEach(pillar => {
-        if (BRANCH_CLASHES[pillar.ganZhi.zhi] === annualGanZhi.zhi) {
-            activations.push({ pillarName: pillar.name, branch: pillar.ganZhi.zhi, method: '六冲', activatedStems: [], description: `流年冲${pillar.name}` });
-        }
-        if (BRANCH_COMBINES[pillar.ganZhi.zhi] === annualGanZhi.zhi) {
-             activations.push({ pillarName: pillar.name, branch: pillar.ganZhi.zhi, method: '六合', activatedStems: [], description: `流年合${pillar.name}` });
-        }
-    });
-    return activations;
-}
-
-const calculateShenShaInteractions = (allShenSha: string[], godStrength: GodStrength[], chart: BaziChart): ShenShaInteraction[] => {
-    const hits: ShenShaInteraction[] = [];
-    SHEN_SHA_INTERACTION_RULES.forEach(rule => {
-        if (rule.requiredStars.every(s => allShenSha.includes(s))) {
-            hits.push({ name: rule.name, stars: rule.requiredStars, effect: rule.effect, severity: rule.severity as any, description: rule.effect });
-        }
-    });
-    return hits;
+  const bazi = Solar.fromYmdHms(year, 6, 1, 12, 0, 0).getLunar().getEightChar();
+  return createGanZhi(bazi.getYearGan(), bazi.getYearZhi(), getStemIndex(dayMaster));
 };
 
 export const calculateAnnualFortune = (chart: BaziChart, year: number): AnnualFortune => {
-  const annualGanZhi = getGanZhiForYear(year, chart.dayMaster);
-  let score = 0;
+  const annualGz = getGanZhiForYear(year, chart.dayMaster);
   const reasons: string[] = [];
-  const { yongShen, jiShen } = chart.balance;
-  const { gan: yGan, zhi: yZhi, ganElement: yGanEl, zhiElement: yZhiEl } = annualGanZhi;
+  let score = 50;
+  
+  const yearZhi = chart.pillars.year.ganZhi.zhi;
+  const dayZhi = chart.pillars.day.ganZhi.zhi;
+  const currentLuck = chart.luckPillars.find(l => year >= l.startYear && year <= l.endYear);
 
-  if (yongShen.includes(yGanEl) || chart.balance.xiShen.includes(yGanEl)) { score += 1.5; reasons.push(`流年天干${yGan}为喜用。`); }
-  else if (jiShen.includes(yGanEl)) { score -= 1.5; reasons.push(`流年天干${yGan}为忌。`); }
-  if (yongShen.includes(yZhiEl) || chart.balance.xiShen.includes(yZhiEl)) { score += 1.5; reasons.push(`流年地支${yZhi}为喜用。`); }
-  else if (jiShen.includes(yZhiEl)) { score -= 1.5; reasons.push(`流年地支${yZhi}为忌。`); }
+  if (currentLuck && annualGz.gan === currentLuck.ganZhi.gan && annualGz.zhi === currentLuck.ganZhi.zhi) {
+    reasons.push("流年与大运岁运并临，所谓“不死自己死他人”，多主大起大落，需谨慎。");
+    score = score < 50 ? score - 20 : score + 10;
+  }
 
-  const dayPillar = chart.pillars.day;
-  if (BRANCH_CLASHES[dayPillar.ganZhi.zhi] === yZhi) { score -= 2; reasons.push(`流年冲日支。`); }
-  if (BRANCH_COMBINES[dayPillar.ganZhi.zhi] === yZhi) { score += 0.5; reasons.push(`流年合日支。`); }
-
-  let rating: '吉' | '凶' | '平' = '平';
-  if (score >= 1.5) rating = '吉';
-  else if (score <= -1.5) rating = '凶';
-
-  return { year, ganZhi: annualGanZhi, rating, reasons, score };
-};
-
-// Calculate Xiao Yun (Small Luck)
-const calculateXiaoYun = (
-    birthYear: number, 
-    startLuckAge: number, 
-    hourPillar: Pillar, 
-    gender: 'male' | 'female',
-    yearGan: string,
-    dayMasterIdx: number
-): XiaoYun[] => {
-    const xiaoYuns: XiaoYun[] = [];
-    const isYangYear = ['甲', '丙', '戊', '庚', '壬'].includes(yearGan);
-    
-    // Direction: Yang Male/Yin Female = Forward (+1), Yin Male/Yang Female = Backward (-1)
-    let direction = 1;
-    if (gender === 'male' && !isYangYear) direction = -1;
-    if (gender === 'female' && isYangYear) direction = -1;
-
-    let currentGanIdx = HEAVENLY_STEMS.indexOf(hourPillar.ganZhi.gan);
-    let currentZhiIdx = EARTHLY_BRANCHES.indexOf(hourPillar.ganZhi.zhi);
-
-    for (let age = 1; age < startLuckAge; age++) { // Only calculate for ages BEFORE DaYun starts
-        // Calculate next pillar based on direction
-        currentGanIdx = (currentGanIdx + direction + 10) % 10;
-        currentZhiIdx = (currentZhiIdx + direction + 12) % 12;
-        
-        const gan = HEAVENLY_STEMS[currentGanIdx];
-        const zhi = EARTHLY_BRANCHES[currentZhiIdx];
-        
-        xiaoYuns.push({
-            age,
-            year: birthYear + age - 1,
-            ganZhi: createGanZhi(gan, zhi, dayMasterIdx)
-        });
+  if (currentLuck) {
+    const luckEl = currentLuck.ganZhi.ganElement;
+    if (chart.balance.yongShen.includes(luckEl)) {
+      reasons.push(`当前大运处于${luckEl}喜用运中，增强了流年的正面能量。`);
+      score += 10;
+    } else if (chart.balance.jiShen.includes(luckEl)) {
+      reasons.push(`当前大运处于${luckEl}忌神运中，放大了流年的负面压力。`);
+      score -= 10;
     }
-    return xiaoYuns;
+  }
+
+  if (annualGz.zhi === yearZhi) {
+    reasons.push(`流年值太岁（${annualGz.zhi}），本命年运势起伏，宜守不宜进。`);
+    score -= 10;
+  }
+  if (BRANCH_CLASHES[annualGz.zhi] === yearZhi) {
+    reasons.push(`流年冲太岁（${annualGz.zhi}冲${yearZhi}），凡事多变，防意外。`);
+    score -= 15;
+  }
+  if (BRANCH_CLASHES[annualGz.zhi] === dayZhi) {
+    reasons.push(`流年冲日支（婚姻宫），感情生活或个人健康易生变数。`);
+    score -= 10;
+  }
+  
+  if (chart.balance.yongShen.includes(annualGz.ganElement)) {
+    reasons.push(`流年天干${annualGz.gan}为喜用神，诸事顺遂，多有贵人助。`);
+    score += 20;
+  } else if (chart.balance.jiShen.includes(annualGz.ganElement)) {
+    reasons.push(`流年天干${annualGz.gan}为忌神，需防财损、口舌或身体微恙。`);
+    score -= 15;
+  }
+
+  if (HONG_LUAN_MAP[yearZhi] === annualGz.zhi) {
+    reasons.push("流年逢红鸾，异性缘佳，适合社交与感情发展。");
+    score += 5;
+  }
+  if (YI_MA_MAP[yearZhi] === annualGz.zhi) {
+    reasons.push("流年逢驿马，主变动、出差或远行。");
+    score += 3;
+  }
+
+  const rating = score >= 65 ? '吉' : (score <= 42 ? '凶' : '平');
+  return { year, ganZhi: annualGz, rating, reasons, score };
 };
 
-export const calculateBazi = (profile: UserProfile): BaziChart => {
-  const dateParts = profile.birthDate.split('-').map(Number);
-  const timeParts = profile.birthTime.split(':').map(Number);
-  
-  // --- 1. Standard Time Object (for Luck Cycle calculation) ---
-  const solarStd = Solar.fromYmdHms(dateParts[0], dateParts[1], dateParts[2], timeParts[0], timeParts[1], 0);
-  
-  // --- 2. Determine Definitive Solar Time for Pillars ---
-  let definitiveSolar = solarStd;
-  const originalTimeStr = `${dateParts[0]}-${dateParts[1]}-${dateParts[2]} ${timeParts[0]}:${timeParts[1]}`;
-  let solarTimeStr = '';
-  let solarTimeData = undefined;
-
-  console.log(`[BaziCalc] Profile "${profile.name}" | Input: ${profile.birthDate} ${profile.birthTime} | TST: ${profile.isSolarTime} | Lon: ${profile.longitude}`);
-
-  if (profile.isSolarTime && profile.longitude) {
-      try {
-          const stdDate = new Date(Date.UTC(dateParts[0], dateParts[1]-1, dateParts[2], timeParts[0], timeParts[1]));
-          const tstDate = calculateTrueSolarTime(stdDate, profile.longitude);
-          
-          definitiveSolar = Solar.fromYmdHms(
-            tstDate.getUTCFullYear(), 
-            tstDate.getUTCMonth() + 1, 
-            tstDate.getUTCDate(), 
-            tstDate.getUTCHours(), 
-            tstDate.getUTCMinutes(), 
-            tstDate.getUTCSeconds()
-          );
-          
-          solarTimeStr = `${tstDate.getUTCFullYear()}-${tstDate.getUTCMonth()+1}-${tstDate.getUTCDate()} ${tstDate.getUTCHours()}:${tstDate.getUTCMinutes()}`;
-          solarTimeData = { longitude: profile.longitude, city: profile.city || '未知' };
-          console.log(`[BaziCalc] True Solar Time applied. Corrected DateTime: ${solarTimeStr}`);
-      } catch (e) {
-          console.error('[BaziCalc] Error calculating True Solar Time. Falling back to standard time.', e);
-          definitiveSolar = solarStd; // Explicitly fall back
-      }
-  } else {
-      console.log('[BaziCalc] Using Standard Time for pillars.');
-  }
-
-  // --- 3. Calculate all pillars from the single definitive source ---
-  const baziPillars = definitiveSolar.getLunar().getEightChar();
-  baziPillars.setSect(1); // Use 23:00-01:00 as Zi hour
-
-  const yearGan = baziPillars.getYearGan();
-  const yearZhi = baziPillars.getYearZhi();
-  const monthGan = baziPillars.getMonthGan();
-  const monthZhi = baziPillars.getMonthZhi();
-  const dayGan = baziPillars.getDayGan();
-  const dayZhi = baziPillars.getDayZhi();
-  const hourGan = baziPillars.getTimeGan();
-  const hourZhi = baziPillars.getTimeZhi();
-  
-  if (!dayGan || !dayZhi) {
-      console.error("[BaziCalc] CRITICAL: Day Pillar calculation failed. Result is empty.", { dayGan, dayZhi });
-      throw new Error("日柱计算失败，请检查输入时间是否有效。");
-  }
-  console.log(`[BaziCalc] Final Pillars - Year: ${yearGan}${yearZhi}, Month: ${monthGan}${monthZhi}, Day: ${dayGan}${dayZhi}, Hour: ${hourGan}${hourZhi}`);
-
-  const dayMaster = dayGan;
-  const dayMasterIdx = getStemIndex(dayMaster);
-  const dayMasterElement = getElement(dayMaster);
-
-  const yearPillar: Pillar = { name: '年柱', ganZhi: createGanZhi(yearGan, yearZhi, dayMasterIdx), kongWang: false, shenSha: [] };
-  const monthPillar: Pillar = { name: '月柱', ganZhi: createGanZhi(monthGan, monthZhi, dayMasterIdx), kongWang: false, shenSha: [] };
-  const dayPillar: Pillar = { name: '日柱', ganZhi: createGanZhi(dayGan, dayZhi, dayMasterIdx), kongWang: false, shenSha: [] };
-  const hourPillar: Pillar = { name: '时柱', ganZhi: createGanZhi(hourGan, hourZhi, dayMasterIdx), kongWang: false, shenSha: [] };
-
-  const dayGanIdx = getStemIndex(dayGan);
-  const dayZhiIdx = EARTHLY_BRANCHES.indexOf(dayZhi);
-  const kwIndex = (dayZhiIdx - dayGanIdx + 12) % 12;
-  const kwMap: Record<number, string[]> = {
-    0: ['戌', '亥'], 10: ['申', '酉'], 8: ['午', '未'], 6: ['辰', '巳'], 4: ['寅', '卯'], 2: ['子', '丑']
-  };
-  const kwBranches = kwMap[kwIndex] || [];
-  [yearPillar, monthPillar, dayPillar, hourPillar].forEach(p => {
-    if (kwBranches.includes(p.ganZhi.zhi)) p.kongWang = true;
-  });
-
-  [yearPillar, monthPillar, dayPillar, hourPillar].forEach(p => {
-      p.shenSha = calculateShenShaForPillar(p.name, p.ganZhi.gan, p.ganZhi.zhi, dayGan, dayZhi, yearZhi, monthZhi, yearGan);
-  });
-  const allShenSha = [yearPillar, monthPillar, dayPillar, hourPillar].flatMap(p => p.shenSha);
-  
-  // --- 4. Luck Pillars & Advanced Palaces (must use Standard Time) ---
-  const baziStd = solarStd.getLunar().getEightChar();
-  baziStd.setSect(1);
-
-  const genderType = profile.gender === 'male' ? 1 : 0;
-  const yun = baziStd.getYun(genderType);
-  const startYearNum = yun.getStartYear();
-  const startMonthNum = yun.getStartMonth();
-  const startDayNum = yun.getStartDay();
-  const startLuckText = `出生后${startYearNum}年${startMonthNum}个月${startDayNum}天起运`;
-  
-  const daYunArr = yun.getDaYun();
-  const startAge = daYunArr.length > 0 ? daYunArr[0].getStartAge() : 0;
-
-  const luckPillars: LuckPillar[] = [];
-  for (let i = 1; i <= 8; i++) {
-      const dy = daYunArr[i - 1]; 
-      if (dy) {
-          const dyGanZhi = dy.getGanZhi();
-          const dyStartAge = dy.getStartAge();
-          const dyStartYear = dy.getStartYear();
-          const dyEndYear = dy.getEndYear();
-          luckPillars.push({
-              index: i,
-              startAge: dyStartAge,
-              startYear: dyStartYear,
-              endYear: dyEndYear,
-              ganZhi: createGanZhi(dyGanZhi.substring(0, 1), dyGanZhi.substring(1, 2), dayMasterIdx)
-          });
-      }
-  }
-
-  const xiaoYun = calculateXiaoYun(dateParts[0], startAge, hourPillar, profile.gender, yearGan, dayMasterIdx);
-  const counts: Record<string, number> = { '金': 0, '木': 0, '水': 0, '火': 0, '土': 0 };
-  [yearPillar, monthPillar, dayPillar, hourPillar].forEach(p => {
-    counts[p.ganZhi.ganElement] = (counts[p.ganZhi.ganElement] || 0) + 1;
-    counts[p.ganZhi.zhiElement] = (counts[p.ganZhi.zhiElement] || 0) + 1;
-  });
-
-  const godStrength = calculateGodStrength(dayMasterIdx, [yearPillar, monthPillar, dayPillar, hourPillar]);
-  const shenShaInteractions = calculateShenShaInteractions(allShenSha, godStrength, {} as any);
-  const balance = calculateBalance(dayMaster, dayMasterElement, {year: yearPillar, month: monthPillar, day: dayPillar, hour: hourPillar}, counts);
-  const pattern = calculatePattern(dayMaster, dayMasterElement, monthPillar, yearPillar, hourPillar);
-  const safeMangPaiIndex = Math.abs(dateParts[2]) % 28;
-
-  return {
-      profileId: profile.id,
-      gender: profile.gender,
-      dayMaster,
-      dayMasterElement,
-      pillars: { year: yearPillar, month: monthPillar, day: dayPillar, hour: hourPillar },
-      mingGong: baziStd.getMingGong(),
-      shenGong: baziStd.getShenGong(),
-      taiYuan: baziStd.getTaiYuan(),
-      taiXi: '暂缺',
-      wuxingCounts: counts,
-      mangPai: [TWENTY_EIGHT_MANSIONS[safeMangPaiIndex] || '未知'],
-      luckPillars,
-      xiaoYun,
-      startLuckText,
-      godStrength,
-      shenShaInteractions,
-      balance,
-      pattern,
-      originalTime: originalTimeStr,
-      solarTime: solarTimeStr,
-      solarTimeData
-  };
-};
-
-export const getAdvancedInterpretation = (chart: BaziChart, data: ModalData): InterpretationResult[] => {
-  const { ganZhi, pillarName, shenSha } = data;
-  const results: InterpretationResult[] = [];
-  const dmStrength = chart.balance.dayMasterStrength.level; 
-  const tenGod = ganZhi.shiShenGan;
-  const { yongShen, jiShen } = chart.balance;
-
-  if (tenGod && !['日主', '元/男', '元/女'].includes(tenGod)) {
-      let content = '';
-      let type: '吉' | '凶' | '中平' = '中平';
-
-      // 1. Resource (Zheng Yin / Pian Yin)
-      if (tenGod === '正印') {
-          if (dmStrength === '身强') {
-              content = `正印为忌（身强不喜生扶），主思虑过重、依赖性强。`; type = '凶';
-          } else if (dmStrength === '身弱') {
-              content = `正印为用（身弱喜生扶），主得长辈扶持，学业顺利。`; type = '吉';
-          }
-      } else if (tenGod === '偏印') {
-          const hasShiShen = [chart.pillars.year, chart.pillars.month, chart.pillars.day, chart.pillars.hour].some(p => p.ganZhi.shiShenGan === '食神');
-          if (hasShiShen) {
-              content = `偏印夺食（枭神夺食），主食欲不振，子女缘薄。`; type = '凶';
-          } else if (dmStrength === '身强') {
-              content = `偏印为忌，主性格孤僻，猜疑心重。`; type = '凶';
-          } else {
-              content = `偏印为用，主领悟力强，利于冷门学术。`; type = '吉';
-          }
-      }
-      // 2. Output
-      else if (['食神', '伤官'].includes(tenGod)) {
-          if (dmStrength === '身强') {
-              content = `${tenGod}泄秀为用，主才华横溢，聪明机智。`; type = '吉';
-          } else if (dmStrength === '身弱') {
-               content = `${tenGod}泄身为忌，主心神不宁，劳碌奔波。`; type = '凶';
-          }
-      }
-      // 3. Officer/Killing
-      else if (['正官', '七杀'].includes(tenGod)) {
-           if (dmStrength === '身强') {
-               content = `${tenGod}制身为用，主事业有成，掌权。`; type = '吉';
-           } else if (dmStrength === '身弱') {
-               content = `${tenGod}攻身为忌，主压力巨大，小人多。`; type = '凶';
-           }
-      }
-       // 4. Wealth
-       else if (['正财', '偏财'].includes(tenGod)) {
-           if (dmStrength === '身强') {
-               content = `${tenGod}耗身为用，主财运亨通。`; type = '吉';
-           } else if (dmStrength === '身弱') {
-               content = `${tenGod}耗身为忌，主求财辛苦，财来财去。`; type = '凶';
-           }
-      }
-      // 5. Companion
-      else if (['比肩', '劫财'].includes(tenGod)) {
-           if (dmStrength === '身强') {
-               content = `${tenGod}助身为忌，主竞争激烈，破财。`; type = '凶';
-           } else if (dmStrength === '身弱') {
-               content = `${tenGod}帮身为用，主得朋友助力，合伙有利。`; type = '吉';
-           }
-      }
-
-      if (content) {
-          results.push({
-              title: `${tenGod}论断`,
-              content,
-              type,
-              category: '十神'
-          });
-      }
-  }
-
-  // Basic Shen Sha Checks
-  if (shenSha && shenSha.length > 0) {
-      if (shenSha.includes('羊刃')) {
-          const zhiElement = ganZhi.zhiElement;
-          if (jiShen.includes(zhiElement)) {
-               results.push({ title: '羊刃为凶', content: `羊刃为忌，主冲动争执，防意外。`, type: '凶', category: '神煞' });
-          } else if (yongShen.includes(zhiElement)) {
-               results.push({ title: '羊刃为权', content: `羊刃为用，主魄力增强，适合武职。`, type: '吉', category: '神煞' });
-          }
-      }
-      if (shenSha.includes('咸池(桃花)')) {
-           results.push({ title: '桃花运', content: `命带桃花，异性缘佳。需防烂桃花。`, type: '中平', category: '神煞' });
-      }
-  }
-
-  return results;
-};
+export const calculateAnnualTrend = (chart: BaziChart, year: number): TrendActivation[] => [];
+export const getAdvancedInterpretation = (chart: BaziChart, data: ModalData): InterpretationResult[] => [];

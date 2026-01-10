@@ -6,6 +6,11 @@ import { calculateBazi, getGanZhiForYear, calculateAnnualTrend, calculateAnnualF
 import { analyzeBaziStructured, BaziReport } from './services/geminiService';
 import { getArchives, saveArchive, deleteArchive, saveAiReportToArchive, updateArchiveTags, updateArchiveAvatar, updateArchiveName } from './services/storageService';
 import { User, Calendar, ArrowRight, Activity, BrainCircuit, RotateCcw, ChevronDown, Info, BarChart3, Tag, Zap, ScrollText, Stars, Clock, X, BookOpen, Compass, AlertTriangle, CheckCircle, MinusCircle, Crown, Search, Key, Sparkles, Smile, Heart, Star, Sun, Moon, Cloud, Ghost, Flower2, Bird, Cat, Edit2, Trash2, Plus, Copy, FileText, ChevronRight, Play, MapPin, Check, History, ClipboardCopy, Building, Baby, GitCommitHorizontal, Eye, EyeOff, ShieldCheck, Quote, TrendingUp, CalendarDays, Briefcase, LayoutPanelLeft } from 'lucide-react';
+import { interpretDayPillar, 
+  interpretMonthPillar, 
+  interpretYearPillar, 
+  interpretHourPillar 
+} from './services/baziService';
 import { 
   HEAVENLY_STEMS, 
   EARTHLY_BRANCHES, 
@@ -17,6 +22,7 @@ import {
   CHAR_MEANINGS,
   CHINA_LOCATIONS
 } from './services/constants';
+
 
 // Fix: Define getStemIndex to resolve reference error in ChartInfoCard.
 const getStemIndex = (stem: string) => Math.max(0, HEAVENLY_STEMS.indexOf(stem));
@@ -233,6 +239,38 @@ const InfoModal: React.FC<{ data: ModalData | null; chart?: BaziChart | null; on
                  <div className="flex-1 bg-gradient-to-br from-stone-50 to-stone-100 border border-stone-200 rounded-lg p-3 flex flex-col items-center"><span className="text-[10px] text-stone-400 font-bold uppercase mb-1">天干</span><ElementText text={stem} className="text-4xl font-serif font-bold mb-1" /><span className="text-xs text-stone-500">{stemElement} · {tenGod}</span></div>
                  <div className="flex-1 bg-gradient-to-br from-stone-50 to-stone-100 border border-stone-200 rounded-lg p-3 flex flex-col items-center"><span className="text-[10px] text-stone-400 font-bold uppercase mb-1">地支</span><ElementText text={branch} className="text-4xl font-serif font-bold mb-1" /><span className="text-xs text-stone-500">{branchElement} · {ganZhi.zhiElement}</span></div>
             </div>
+            {/* --- 新增：四柱深度解读卡片 --- */}
+{chart && (
+  <div className="bg-white border border-stone-100 rounded-lg p-3 shadow-sm ring-1 ring-stone-900/5">
+    <div className="flex items-center gap-2 mb-2">
+      <BrainCircuit size={14} className="text-indigo-600" />
+      <span className="font-bold text-sm text-stone-800">深度命理解读</span>
+    </div>
+    <div className="text-xs text-stone-600 leading-relaxed space-y-2 bg-stone-50 p-2 rounded border border-stone-100 italic">
+      {(() => {
+        // 根据 pillarName 调用不同的解读函数
+        let interpretation;
+        switch (pillarName) {
+          case '日柱':
+            interpretation = interpretDayPillar(chart);
+            break;
+          case '月柱':
+            interpretation = interpretMonthPillar(chart);
+            break;
+          case '年柱':
+            interpretation = interpretYearPillar(chart);
+            break;
+          case '时柱':
+            interpretation = interpretHourPillar(chart);
+            break;
+          default:
+            return "暂无深度解读";
+        }
+        return interpretation.integratedSummary || "暂无深度解读";
+      })()}
+    </div>
+  </div>
+)}
             {advancedReadings.length > 0 && (<div className="space-y-2"><div className="flex items-center gap-2 mb-1"><Search size={14} className="text-amber-600" /><span className="text-xs font-bold text-stone-500 uppercase">深度解读</span></div>{advancedReadings.map((reading, idx) => (<div key={idx} className={`rounded-lg p-3 border text-xs leading-relaxed ${reading.type === '吉' ? 'bg-green-50 border-green-100 text-green-900' : reading.type === '凶' ? 'bg-red-50 border-red-100 text-red-900' : 'bg-stone-50 border-stone-100 text-stone-700'}`}><div className="flex items-center justify-between mb-1"><span className="font-bold">{reading.title}</span><span className={`text-[10px] px-1.5 py-0.5 rounded-full border ${reading.type === '吉' ? 'bg-green-100 border-green-200 text-green-700' : reading.type === '凶' ? 'bg-red-100 border-red-200 text-red-700' : 'bg-stone-200 border-stone-300 text-stone-600'}`}>{reading.type}</span></div><p>{reading.content}</p></div>))}</div>)}
             <div className="bg-white border border-stone-100 rounded-lg p-3 shadow-sm ring-1 ring-stone-900/5"><div className="flex items-center gap-2 mb-2"><div className="w-1 h-4 bg-amber-500 rounded-full"></div><span className="font-bold text-sm text-stone-800">天干 · {stem}</span></div><div className="text-xs text-stone-600 leading-relaxed space-y-2"><p>{stemBasic}</p>{tenGodInfo && (<div className="bg-amber-50 p-2 rounded border border-amber-100 mt-2"><span className="font-bold text-amber-800 block mb-1">{tenGod}：</span><p className="mb-1">{tenGodInfo.summary}</p>{posReading && (<p className="text-amber-900/80 italic mt-1 border-t border-amber-200/50 pt-1">"{posReading.desc}"</p>)}</div>)}{isDayMaster && (<div className="bg-amber-50 p-2 rounded border border-amber-100 mt-2"><span className="font-bold text-amber-800">日元心性：</span><p>此为命主元神，代表最核心的自我性格与潜意识。</p></div>)}</div></div>
             <div className="bg-white border border-stone-100 rounded-lg p-3 shadow-sm ring-1 ring-stone-900/5"><div className="flex items-center gap-2 mb-2"><div className="w-1 h-4 bg-stone-500 rounded-full"></div><span className="font-bold text-sm text-stone-800">地支 · {branch}</span></div><p className="text-xs text-stone-600 leading-relaxed">{branchBasic}</p><div className="mt-3 bg-stone-50 p-2 rounded border border-stone-100"><span className="text-[10px] font-bold text-stone-400 uppercase block mb-1">支中藏干</span><div className="flex gap-2">{ganZhi.hiddenStems.map((hs, i) => (<div key={i} className="flex items-center gap-1 bg-white px-2 py-1 rounded shadow-sm border border-stone-200"><ElementText text={hs.stem} className="font-bold text-sm" /><div className="flex flex-col leading-none"><span className="text-[10px] text-stone-500">{hs.shiShen}</span><span className="text-[9px] text-stone-300 scale-90 origin-left">{hs.type}</span></div></div>))}</div></div></div>

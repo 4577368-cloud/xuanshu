@@ -14,41 +14,51 @@ export interface UserProfile {
   birthTime: string; // HH:mm
   gender: Gender;
   isSolarTime: boolean;
-  province?: string; // New: Province name
-  city?: string;     // New: City name
-  longitude?: number; // New: Longitude for solar time calculation
+  province?: string;
+  city?: string;
+  longitude?: number;
   createdAt: number;
-  // New Archive Fields
-  avatar?: string; // Icon name e.g., 'default', 'dragon', 'lotus'
-  tags?: string[]; // e.g. ['self', 'family']
-  aiReports?: AiReportRecord[]; // History of AI reports
+  avatar?: string;
+  tags?: string[];
+  aiReports?: AiReportRecord[];
   lastUpdated?: number;
 }
 
 export interface HiddenStem {
   stem: string;
-  shiShen: string; // Ten God relative to DM
+  shiShen: string;
   type: '主气' | '中气' | '余气';
-  powerPercentage: number; // 60, 30, or 10
+  powerPercentage: number;
 }
 
 export interface GanZhi {
-  gan: string; // Heavenly Stem
-  zhi: string; // Earthly Branch
+  gan: string;
+  zhi: string;
   ganElement: string;
   zhiElement: string;
-  hiddenStems: HiddenStem[]; // Detailed hidden stems
-  naYin: string; // Melodic Element
-  shiShenGan: string; // Ten God of the Stem
-  lifeStage: string; // 12 Life Stages (Zhang Sheng, etc.) relative to DM
-  selfLifeStage: string; // 12 Life Stages (Stem vs Branch)
+  hiddenStems: HiddenStem[];
+  naYin: string;
+  shiShenGan: string;
+  lifeStage: string;
+  selfLifeStage: string;
 }
 
 export interface Pillar {
-  name: string; // Year, Month, Day, Hour
+  name: string;
   ganZhi: GanZhi;
-  kongWang: boolean; // Empty Death
-  shenSha: string[]; // Stars/Gods
+  kongWang: boolean;
+  shenSha: string[];
+}
+
+export interface PillarInterpretation {
+  pillarName: string;
+  coreSymbolism: string;
+  hiddenDynamics: string;
+  naYinInfluence: string;
+  lifeStageEffect: string;
+  shenShaEffects: string[];
+  roleInDestiny: string;
+  integratedSummary: string;
 }
 
 export interface LuckPillar {
@@ -69,54 +79,54 @@ export interface GodStrength {
   name: string;
   element: string;
   score: number;
-  level: string; // 强, 中, 弱
-  tags: string[]; // e.g., "强根", "入墓", "空亡"
+  level: string;
+  tags: string[];
 }
 
 export interface TrendActivation {
-  pillarName: string; // e.g., "月柱"
-  branch: string; // e.g., "寅"
-  method: '透干' | '六冲' | '六合' | '半合' | '刑'; // How it was activated
+  pillarName: string;
+  branch: string;
+  method: '透干' | '六冲' | '六合' | '半合' | '刑';
   activatedStems: {
     stem: string;
     shiShen: string;
-    events: string[]; // Potential events
+    events: string[];
   }[];
-  description: string; // e.g., "流年申冲月支寅，引动甲木偏财"
+  description: string;
 }
 
 export interface ShenShaInteraction {
-  name: string; // e.g. "德贵双全"
-  stars: string[]; // The stars involved, e.g. ["天乙贵人", "天德贵人"]
-  effect: string; // Description of the effect
-  severity: '吉' | '凶' | '中平'; // For UI coloring
-  description: string; // Detailed interpretation
+  name: string;
+  stars: string[];
+  effect: string;
+  severity: '吉' | '凶' | '中平';
+  description: string;
 }
 
 export interface BalanceAnalysis {
   dayMasterStrength: {
     score: number;
     level: '身强' | '身弱' | '中和';
-    description: string; // e.g., "得令,得地"
+    description: string;
   };
-  yongShen: string[]; // Useful Elements (e.g., ['水', '木'])
-  xiShen: string[];   // Joyful Elements
-  jiShen: string[];   // Harmful Elements
-  method: '调候' | '扶抑' | '通关'; // The primary method used
-  advice: string; // Brief advice string
-  tiaoHouYongShen?: string[]; // Optional compatibility field
+  yongShen: string[];
+  xiShen: string[];
+  jiShen: string[];
+  method: '调候' | '扶抑' | '通关';
+  advice: string;
+  tiaoHouYongShen?: string[];
 }
 
 export interface PatternAnalysis {
-  name: string; // e.g. "正官格"
+  name: string;
   type: '正格' | '变格' | '外格';
-  isEstablished: boolean; // 成格/破格
+  isEstablished: boolean;
   level: '上等' | '中等' | '下等' | '破格';
   keyFactors: {
-    beneficial: string[]; // Factors helping the pattern
-    destructive: string[]; // Factors breaking the pattern
+    beneficial: string[];
+    destructive: string[];
   };
-  description: string; // Detailed analysis text
+  description: string;
 }
 
 export interface AnnualFortune {
@@ -137,7 +147,7 @@ export interface InterpretationResult {
 export interface BaziChart {
   profileId: string;
   gender: Gender;
-  dayMaster: string; // The Day Stem
+  dayMaster: string;
   dayMasterElement: string;
   pillars: {
     year: Pillar;
@@ -145,22 +155,8 @@ export interface BaziChart {
     day: Pillar;
     hour: Pillar;
   };
-  
-  // These are legacy fields, keeping for potential data migration if needed
-  daLiu?: any[];
-  shenSha?: any;
-  kongWang?: string[];
-  shiShenRelations?: any;
-  naYinElements?: any;
-  taiYuanMingGong?: any; // Deprecated by top-level fields
-  specialPatterns?: any[];
-  birthTime?: any;
-  currentDaYun?: string;
-  keyYears?: string[];
-  startYunAge?: number;
-
   mingGong: string; 
-  shenGong: string; // New field for Body Palace
+  shenGong: string;
   taiYuan: string; 
   taiXi: string; 
   wuxingCounts: Record<string, number>;
@@ -177,7 +173,6 @@ export interface BaziChart {
   solarTimeData?: { longitude: number; city: string };
 }
 
-
 export enum AppTab {
   HOME = 'home',
   CHART = 'chart',
@@ -190,7 +185,7 @@ export enum ChartSubTab {
   VISUAL = 'visual',
   DETAIL = 'detail',
   LUCK = 'luck',
-  ANALYSIS = 'analysis' // New sub-tab
+  ANALYSIS = 'analysis'
 }
 
 export interface ModalData {
