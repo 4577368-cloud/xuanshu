@@ -810,7 +810,7 @@ const ChartView: React.FC<{
       )}
     </div>
   )
-}    ];
+}   
 
     return (
       <div className="space-y-4">
