@@ -748,70 +748,67 @@ const ChartView: React.FC<{
       { key: 'hour', label: '时柱', data: chart.pillars.hour },
     ];
 
-    const rows = [
-      { label: '主星', render: (p: Pillar) => p.name === '日柱' ? '日元' : (p.ganZhi.shiShenGan || '-') },
-      { label: '天干', render: (p: Pillar) => (<div onClick={() => openModal(p.name, p.ganZhi, p.shenSha, p.kongWang)} className="cursor-pointer active:scale-95 transition-transform"><ElementText text={p.ganZhi.gan} className="text-2xl font-bold font-serif" /></div>) },
-      { label: '地支', render: (p: Pillar) => (<div onClick={() => openModal(p.name, p.ganZhi, p.shenSha, p.kongWang)} className="cursor-pointer active:scale-95 transition-transform"><ElementText text={p.ganZhi.zhi} className="text-2xl font-bold font-serif" /></div>) },
-      { label: '藏干', render: (p: Pillar) => (<div className="flex flex-col text-[10px] space-y-0.5 leading-none items-center">{p.ganZhi.hiddenStems.map((h, i) => (<span key={i} className={h.type === '主气' ? 'font-bold text-stone-800' : 'text-stone-500 scale-90'}>{h.stem}{FIVE_ELEMENTS[h.stem]}</span>))}</div>) },
-      { label: '副星', render: (p: Pillar) => (<div className="flex flex-col text-[10px] space-y-0.5 leading-none text-stone-500 items-center">{p.ganZhi.hiddenStems.map((h, i) => <span key={i} className="whitespace-nowrap scale-90">{h.shiShen}</span>)}</div>) },
-      { label: '纳音', render: (p: Pillar) => <span className="text-[10px] scale-90 whitespace-nowrap text-stone-500">{p.ganZhi.naYin}</span> },
-      { label: '星运', render: (p: Pillar) => <span className="text-xs text-stone-600">{p.ganZhi.lifeStage}</span> },
-      { label: '自坐', render: (p: Pillar) => <span className="text-xs text-stone-500">{p.ganZhi.selfLifeStage}</span> },
-{ 
-  label: '空亡', 
-  render: (p: Pillar) => 
-    isKongWang(p.ganZhi.zhi) ? 
-      <span className="text-[10px] bg-stone-200 px-1 rounded text-stone-600">空</span> : 
-      <span className="text-stone-200">—</span> 
-}
-{
-  label: '神煞',
-  render: (p: Pillar) => (
-    <div className="flex flex-wrap justify-center gap-1 w-full px-1 py-0.5 min-h-[24px]">
-      {p.shenSha.length === 0 ? (
-        <span className="text-[9px] text-stone-400">—</span>
-      ) : (
-        p.shenSha.map((s, i) => {
-          // 吉神（贵人、德、禄、将星等）
-          const isAuspicious = ['天乙', '太极', '文昌', '文星', '福星', '天德', '月德', '将星', '华盖', '金舆', '禄'].some(k => s.includes(k));
-          // 凶煞（劫煞、灾煞、孤寡等）
-          const isInauspicious = ['劫煞', '灾煞', '天煞', '地煞', '孤辰', '寡宿', '阴差阳错', '空亡'].some(k => s.includes(k));
-          // 桃花类（中性，需结合命局）
-          const isPeachBlossom = ['桃花', '咸池', '红艳'].some(k => s.includes(k));
+  const rows = [
+  { label: '主星', render: (p: Pillar) => p.name === '日柱' ? '日元' : (p.ganZhi.shiShenGan || '-') },
+  { label: '天干', render: (p: Pillar) => (<div onClick={() => openModal(p.name, p.ganZhi, p.shenSha, p.kongWang)} className="cursor-pointer active:scale-95 transition-transform"><ElementText text={p.ganZhi.gan} className="text-2xl font-bold font-serif" /></div>) },
+  { label: '地支', render: (p: Pillar) => (<div onClick={() => openModal(p.name, p.ganZhi, p.shenSha, p.kongWang)} className="cursor-pointer active:scale-95 transition-transform"><ElementText text={p.ganZhi.zhi} className="text-2xl font-bold font-serif" /></div>) },
+  { label: '藏干', render: (p: Pillar) => (<div className="flex flex-col text-[10px] space-y-0.5 leading-none items-center">{p.ganZhi.hiddenStems.map((h, i) => (<span key={i} className={h.type === '主气' ? 'font-bold text-stone-800' : 'text-stone-500 scale-90'}>{h.stem}{FIVE_ELEMENTS[h.stem]}</span>))}</div>) },
+  { label: '副星', render: (p: Pillar) => (<div className="flex flex-col text-[10px] space-y-0.5 leading-none text-stone-500 items-center">{p.ganZhi.hiddenStems.map((h, i) => <span key={i} className="whitespace-nowrap scale-90">{h.shiShen}</span>)}</div>) },
+  { label: '纳音', render: (p: Pillar) => <span className="text-[10px] scale-90 whitespace-nowrap text-stone-500">{p.ganZhi.naYin}</span> },
+  { label: '星运', render: (p: Pillar) => <span className="text-xs text-stone-600">{p.ganZhi.lifeStage}</span> },
+  { label: '自坐', render: (p: Pillar) => <span className="text-xs text-stone-500">{p.ganZhi.selfLifeStage}</span> },
+  { 
+    label: '空亡', 
+    render: (p: Pillar) => 
+      isKongWang(p.ganZhi.zhi) ? 
+        <span className="text-[10px] bg-stone-200 px-1 rounded text-stone-600">空</span> : 
+        <span className="text-stone-200">—</span> 
+  }, // 👈👈👈 这里加逗号！
+  { 
+    label: '神煞',
+    render: (p: Pillar) => (
+      <div className="flex flex-wrap justify-center gap-1 w-full px-1 py-0.5 min-h-[24px]">
+        {p.shenSha.length === 0 ? (
+          <span className="text-[9px] text-stone-400">—</span>
+        ) : (
+          p.shenSha.map((s, i) => {
+            const isAuspicious = ['天乙', '太极', '文昌', '文星', '福星', '天德', '月德', '将星', '华盖', '金舆', '禄'].some(k => s.includes(k));
+            const isInauspicious = ['劫煞', '灾煞', '天煞', '地煞', '孤辰', '寡宿', '阴差阳错', '空亡'].some(k => s.includes(k));
+            const isPeachBlossom = ['桃花', '咸池', '红艳'].some(k => s.includes(k));
 
-          let bgColor = 'bg-stone-100';
-          let textColor = 'text-stone-600';
-          let borderColor = 'border-stone-200';
+            let bgColor = 'bg-stone-100';
+            let textColor = 'text-stone-600';
+            let borderColor = 'border-stone-200';
 
-          if (isAuspicious) {
-            bgColor = 'bg-emerald-50';
-            textColor = 'text-emerald-700';
-            borderColor = 'border-emerald-200';
-          } else if (isInauspicious) {
-            bgColor = 'bg-rose-50';
-            textColor = 'text-rose-700';
-            borderColor = 'border-rose-200';
-          } else if (isPeachBlossom) {
-            bgColor = 'bg-amber-50';
-            textColor = 'text-amber-700';
-            borderColor = 'border-amber-200';
-          }
+            if (isAuspicious) {
+              bgColor = 'bg-emerald-50';
+              textColor = 'text-emerald-700';
+              borderColor = 'border-emerald-200';
+            } else if (isInauspicious) {
+              bgColor = 'bg-rose-50';
+              textColor = 'text-rose-700';
+              borderColor = 'border-rose-200';
+            } else if (isPeachBlossom) {
+              bgColor = 'bg-amber-50';
+              textColor = 'text-amber-700';
+              borderColor = 'border-amber-200';
+            }
 
-          return (
-            <span
-              key={i}
-              className={`text-[8px] px-1 py-0.5 rounded border whitespace-nowrap ${bgColor} ${textColor} ${borderColor} leading-none`}
-              title={s} // 鼠标悬停显示全名（防截断）
-            >
-              {s}
-            </span>
-          );
-        })
-      )}
-    </div>
-  )
-}   
-
+            return (
+              <span
+                key={i}
+                className={`text-[8px] px-1 py-0.5 rounded border whitespace-nowrap ${bgColor} ${textColor} ${borderColor} leading-none`}
+                title={s}
+              >
+                {s}
+              </span>
+            );
+          })
+        )}
+      </div>
+    )
+  }   
+];
     return (
       <div className="space-y-4">
          <ChartInfoCard chart={chart} />
