@@ -312,7 +312,129 @@ export const interpretHourPillar = (chart: BaziChart): PillarInterpretation => {
 };
 
 // --- Core Service Functions ---
+const calculateShenShaForPillar = (
+  pillarType: 'year' | 'month' | 'day' | 'hour',
+  gan: string,
+  zhi: string,
+  dayMaster: string,
+  yearZhi: string,
+  monthZhi: string,
+  hourZhi: string
+): string[] => {
+  const shenSha: string[] = [];
 
+  // 天乙贵人
+  if (TIAN_YI_MAP[dayMaster]?.includes(zhi)) {
+    shenSha.push('天乙贵人');
+  }
+
+  // 文昌贵人
+  if (WEN_CHANG_MAP[dayMaster]?.includes(zhi)) {
+    shenSha.push('文昌贵人');
+  }
+
+  // 禄神
+  if (LU_SHEN_MAP[dayMaster] === zhi) {
+    shenSha.push('禄神');
+  }
+
+  // 羊刃（仅日干）
+  if (YANG_REN_MAP[dayMaster] === zhi && pillarType === 'day') {
+    shenSha.push('羊刃');
+  }
+
+  // 天德贵人
+  if (TIAN_DE_MAP[monthZhi] === gan) {
+    shenSha.push('天德贵人');
+  }
+
+  // 月德贵人
+  if (YUE_DE_MAP[monthZhi] === gan) {
+    shenSha.push('月德贵人');
+  }
+
+  // 金舆
+  if (JIN_YU_MAP[gan] === zhi) {
+    shenSha.push('金舆');
+  }
+
+  // 红艳
+  if (HONG_YAN_MAP[dayMaster] === zhi) {
+    shenSha.push('红艳');
+  }
+
+  // 血刃（需年支）
+  if (XUE_TANG_MAP[yearZhi] === zhi) {
+    shenSha.push('血刃');
+  }
+
+  // 词馆
+  if (CI_GUAN_MAP[gan] === zhi) {
+    shenSha.push('词馆');
+  }
+
+  // 天厨
+  if (TIAN_CHU_MAP[gan] === zhi) {
+    shenSha.push('天厨');
+  }
+
+  // 孤辰（年支决定）
+  if (GU_CHEN_MAP[yearZhi] === zhi) {
+    shenSha.push('孤辰');
+  }
+
+  // 寡宿（年支决定）
+  if (GUA_SU_MAP[yearZhi] === zhi) {
+    shenSha.push('寡宿');
+  }
+
+  // 红鸾（年支决定）
+  if (HONG_LUAN_MAP[yearZhi] === zhi) {
+    shenSha.push('红鸾');
+  }
+
+  // 劫煞（年支决定）
+  if (JIE_SHA_MAP[yearZhi] === zhi) {
+    shenSha.push('劫煞');
+  }
+
+  // 灾煞（年支决定）
+  if (ZAI_SHA_MAP[yearZhi] === zhi) {
+    shenSha.push('灾煞');
+  }
+
+  // 亡神（年支决定）
+  if (WANG_SHEN_MAP[yearZhi] === zhi) {
+    shenSha.push('亡神');
+  }
+
+  // 咸池（桃花）
+  if (XIAN_CHI_MAP[dayMaster] === zhi) {
+    shenSha.push('咸池（桃花）');
+  }
+
+  // 驿马（年/日支决定）
+  if (YI_MA_MAP[yearZhi] === zhi || YI_MA_MAP[dayMaster] === zhi) {
+    shenSha.push('驿马');
+  }
+
+  // 华盖
+  if (HUA_GAI_MAP[dayMaster] === zhi) {
+    shenSha.push('华盖');
+  }
+
+  // 将星
+  if (JIANG_XING_MAP[zhi]) {
+    shenSha.push('将星');
+  }
+
+  // 六秀（需查月支）
+  if (LIU_XIA_MAP[monthZhi]?.includes(zhi)) {
+    shenSha.push('六秀');
+  }
+
+  return shenSha;
+};
 export const calculateBazi = (profile: UserProfile): BaziChart => {
   const d = profile.birthDate.split('-').map(Number);
   const t = profile.birthTime.split(':').map(Number);
@@ -344,11 +466,23 @@ export const calculateBazi = (profile: UserProfile): BaziChart => {
   };
 
   const pillars: any = {};
-  Object.keys(pillarsRaw).forEach(k => {
-    const p = pillarsRaw[k as keyof typeof pillarsRaw];
-    const kw = dayKW.includes(p.ganZhi.zhi) || yearKW.includes(p.ganZhi.zhi);
-    pillars[k] = { ...p, shenSha: [], kongWang: kw };
-  });
+  const yearZhi = eightChar.getYearZhi();
+const monthZhi = eightChar.getMonthZhi();
+const dayZhi = eightChar.getDayZhi();
+const hourZhi = eightChar.getTimeZhi();
+
+Object.entries(pillarsRaw).forEach(([key, p]) => {
+  const type = key as 'year' | 'month' | 'day' | 'hour';
+  const gan = p.ganZhi.gan;
+  const zhi = p.ganZhi.zhi;
+  
+  const shenSha = calculateShenShaForPillar(
+    type, gan, zhi, dm, yearZhi, monthZhi, hourZhi
+  );
+  
+  const kw = dayKW.includes(zhi) || yearKW.includes(zhi);
+  pillars[key] = { ...p, shenSha, kongWang: kw };
+});
 
   const counts: Record<string, number> = { '金': 0, '木': 0, '水': 0, '火': 0, '土': 0 };
   Object.values(pillars).forEach((p: any) => { counts[p.ganZhi.ganElement]++; counts[p.ganZhi.zhiElement]++; });

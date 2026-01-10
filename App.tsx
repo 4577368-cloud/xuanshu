@@ -194,7 +194,7 @@ const PatternCard: React.FC<{ pattern: PatternAnalysis }> = ({ pattern }) => {
           <p className="text-xs text-stone-600 leading-relaxed bg-stone-50 p-3 rounded-lg border border-stone-100 italic">{description}</p>
           <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1"><span className="text-[10px] font-bold text-stone-400 uppercase">成格有利因素</span><div className="flex flex-wrap gap-1">{keyFactors.beneficial.length > 0 ? keyFactors.beneficial.map((f, i) => (<span key={i} className="text-[10px] bg-green-50 text-green-700 border border-green-100 px-1.5 py-0.5 rounded">{f}</span>)) : <span className="text-[10px] text-stone-300">-</span>}</div></div>
-              <div className="space-y-1"><span className="text-[10px] font-bold text-stone-400 uppercase">破格/不利因素</span><div className="flex flex-wrap gap-1">{keyFactors.destructive.length > 0 ? keyFactors.destructive.map((f, i) => (<span key={i} className="text-[10px] bg-red-50 text-red-700 border border-red-100 px-1.5 py-0.5 rounded">{f}</span>)) : <span className="text-[10px] text-stone-300">-</span>}</div></div>
+              <div className="space-y-1"><span className="text-[10px] font-bold text-stone-400 uppercase">破格/不利因素</span><div className="flex flex-wrap gap-1">{keyFactors.destructive.length > 0 ? keyFactors.destructive.map((f, i) => (<span key={i} className="text-[10px] bg-red-50 text-red-700 border-red-100 px-1.5 py-0.5 rounded">{f}</span>)) : <span className="text-[10px] text-stone-300">-</span>}</div></div>
           </div>
       </div>
     </div>
@@ -244,7 +244,7 @@ const InfoModal: React.FC<{ data: ModalData | null; chart?: BaziChart | null; on
   <div className="bg-white border border-stone-100 rounded-lg p-3 shadow-sm ring-1 ring-stone-900/5">
     <div className="flex items-center gap-2 mb-2">
       <BrainCircuit size={14} className="text-indigo-600" />
-      <span className="font-bold text-sm text-stone-800">深度命理解读</span>
+      <span className="font-bold text-sm text-stone-800">本柱解读</span>
     </div>
     <div className="text-xs text-stone-600 leading-relaxed space-y-2 bg-stone-50 p-2 rounded border border-stone-100 italic">
       {(() => {
@@ -460,7 +460,7 @@ const TipsView: React.FC<{ chart: BaziChart | null }> = ({ chart }) => {
 const HomeView: React.FC<{ onGenerate: (profile: UserProfile, subTab?: ChartSubTab) => void }> = ({ onGenerate }) => {
   const [name, setName] = useState('');
   const [gender, setGender] = useState<Gender>('male');
-  const [birthDate, setBirthDate] = useState('');
+  const [birthDate, setBirthDate] = useState('1990-01-01');
   const [birthTime, setBirthTime] = useState('12:00');
   const [isSolarTime, setIsSolarTime] = useState(false);
   const [province, setProvince] = useState('');
@@ -485,9 +485,9 @@ const HomeView: React.FC<{ onGenerate: (profile: UserProfile, subTab?: ChartSubT
       }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!name || !birthDate) return;
+const handleSubmit = (e: React.FormEvent) => {
+  e.preventDefault();
+  if (!birthDate || !birthTime) return; // 只要求时间和日期
 
     const profile: UserProfile = {
       id: Date.now().toString(),
@@ -523,8 +523,7 @@ const HomeView: React.FC<{ onGenerate: (profile: UserProfile, subTab?: ChartSubT
               value={name} 
               onChange={e => setName(e.target.value)} 
               className="w-full bg-stone-50 border border-stone-200 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-stone-900/10 focus:border-stone-400 transition-all font-serif"
-              placeholder="请输入姓名"
-              required 
+              placeholder="请输入姓名"       
             />
           </div>
 
@@ -729,9 +728,19 @@ const ChartView: React.FC<{
     { id: ChartSubTab.DETAIL, label: '大运流年' },
     { id: ChartSubTab.ANALYSIS, label: '大师解读' }
   ];
-
-  // --- Grid Renderers ---
+ // --- Grid Renderers ---
   const renderBasicGrid = () => {
+    const dayGan = chart.pillars.day.ganZhi.gan;
+  const dayZhi = chart.pillars.day.ganZhi.zhi;
+  const dayGanIdx = getStemIndex(dayGan);
+  const dayZhiIdx = EARTHLY_BRANCHES.indexOf(dayZhi);
+  const kwIndex = (dayZhiIdx - dayGanIdx + 12) % 12;
+  const kwMap: Record<number, string[]> = { 
+    0: ['戌', '亥'], 10: ['申', '酉'], 8: ['午', '未'], 
+    6: ['辰', '巳'], 4: ['寅', '卯'], 2: ['子', '丑'] 
+  };
+  const dayKongWangBranches = kwMap[kwIndex] || [];
+  const isKongWang = (zhi: string) => dayKongWangBranches.includes(zhi);
     const pillars = [
       { key: 'year', label: '年柱', data: chart.pillars.year },
       { key: 'month', label: '月柱', data: chart.pillars.month },
@@ -748,9 +757,60 @@ const ChartView: React.FC<{
       { label: '纳音', render: (p: Pillar) => <span className="text-[10px] scale-90 whitespace-nowrap text-stone-500">{p.ganZhi.naYin}</span> },
       { label: '星运', render: (p: Pillar) => <span className="text-xs text-stone-600">{p.ganZhi.lifeStage}</span> },
       { label: '自坐', render: (p: Pillar) => <span className="text-xs text-stone-500">{p.ganZhi.selfLifeStage}</span> },
-      { label: '空亡', render: (p: Pillar) => p.kongWang ? <span className="text-[10px] bg-stone-200 px-1 rounded text-stone-600">空</span> : <span className="text-stone-200">-</span> },
-      { label: '神煞', render: (p: Pillar) => (<div className="flex flex-col items-center gap-1 w-full px-1 py-1">{p.shenSha.slice(0, 3).map((s, i) => (<span key={i} className={`text-[9px] px-1 py-0.5 rounded whitespace-nowrap border w-full text-center ${['天乙', '太极', '禄', '文昌', '天德', '月德', '将星'].some(k => s.includes(k)) ? 'bg-red-50 text-red-700 border-red-100' : 'bg-stone-50 text-stone-500 border-stone-100'}`}>{s}</span>))}</div>) },
-    ];
+{ 
+  label: '空亡', 
+  render: (p: Pillar) => 
+    isKongWang(p.ganZhi.zhi) ? 
+      <span className="text-[10px] bg-stone-200 px-1 rounded text-stone-600">空</span> : 
+      <span className="text-stone-200">—</span> 
+}
+{
+  label: '神煞',
+  render: (p: Pillar) => (
+    <div className="flex flex-wrap justify-center gap-1 w-full px-1 py-0.5 min-h-[24px]">
+      {p.shenSha.length === 0 ? (
+        <span className="text-[9px] text-stone-400">—</span>
+      ) : (
+        p.shenSha.map((s, i) => {
+          // 吉神（贵人、德、禄、将星等）
+          const isAuspicious = ['天乙', '太极', '文昌', '文星', '福星', '天德', '月德', '将星', '华盖', '金舆', '禄'].some(k => s.includes(k));
+          // 凶煞（劫煞、灾煞、孤寡等）
+          const isInauspicious = ['劫煞', '灾煞', '天煞', '地煞', '孤辰', '寡宿', '阴差阳错', '空亡'].some(k => s.includes(k));
+          // 桃花类（中性，需结合命局）
+          const isPeachBlossom = ['桃花', '咸池', '红艳'].some(k => s.includes(k));
+
+          let bgColor = 'bg-stone-100';
+          let textColor = 'text-stone-600';
+          let borderColor = 'border-stone-200';
+
+          if (isAuspicious) {
+            bgColor = 'bg-emerald-50';
+            textColor = 'text-emerald-700';
+            borderColor = 'border-emerald-200';
+          } else if (isInauspicious) {
+            bgColor = 'bg-rose-50';
+            textColor = 'text-rose-700';
+            borderColor = 'border-rose-200';
+          } else if (isPeachBlossom) {
+            bgColor = 'bg-amber-50';
+            textColor = 'text-amber-700';
+            borderColor = 'border-amber-200';
+          }
+
+          return (
+            <span
+              key={i}
+              className={`text-[8px] px-1 py-0.5 rounded border whitespace-nowrap ${bgColor} ${textColor} ${borderColor} leading-none`}
+              title={s} // 鼠标悬停显示全名（防截断）
+            >
+              {s}
+            </span>
+          );
+        })
+      )}
+    </div>
+  )
+}    ];
 
     return (
       <div className="space-y-4">
@@ -765,6 +825,7 @@ const ChartView: React.FC<{
     );
   };
 
+ 
   const renderDetailGrid = () => {
     const currentLuck = chart.luckPillars[selectedLuckIdx];
     const annualGanZhi = getGanZhiForYear(analysisYear, chart.dayMaster);
@@ -777,7 +838,7 @@ const ChartView: React.FC<{
     
     const xiaoYunData = chart.xiaoYun.find(x => x.age === ageInYear);
 
-    const columns = [
+const columns = [
         { title: '时柱', ganZhi: chart.pillars.hour.ganZhi, data: chart.pillars.hour },
         { title: '日柱', ganZhi: chart.pillars.day.ganZhi, data: chart.pillars.day },
         { title: '月柱', ganZhi: chart.pillars.month.ganZhi, data: chart.pillars.month },
@@ -804,7 +865,33 @@ const ChartView: React.FC<{
 
                      <div className="bg-stone-100 flex items-center justify-center text-[10px] text-stone-500 font-bold">藏干</div>
                      {columns.map((col, i) => <div key={i} className="h-16 bg-white">{col.ganZhi && (<div className="flex flex-col items-center justify-center h-full w-full py-1 gap-0.5 px-0.5">{col.ganZhi.hiddenStems.map((h: any, j: number) => (<div key={j} className="flex items-center justify-between w-full max-w-[3.5rem] gap-1 leading-none"><span className="text-[10px] font-bold shrink-0"><ElementText text={h.stem} /></span><span className="text-[10px] text-stone-500 whitespace-nowrap scale-90">{h.shiShen}</span></div>))}</div>)}</div>)}
-                     
+
+ {/* === 神煞 行 === */}
+<div className="bg-stone-100 flex items-center justify-center text-[10px] text-stone-500 font-bold">神煞</div>
+{columns.map((col, i) => {
+  // Fix: Access shenSha from col.data (Pillar) or provide fallback if it's dynamic
+  const shenShaList = col.data?.shenSha || [];
+  return (
+    <div key={i} className="h-16 bg-white">
+      {shenShaList.length > 0 ? (
+        <div className="flex flex-wrap gap-1 justify-center items-center h-full px-1">
+          {shenShaList.slice(0, 3).map((ss: string, idx: number) => (
+            <span
+              key={idx}
+              className="text-[10px] bg-amber-100 px-1 rounded text-amber-800 whitespace-nowrap"
+            >
+              {ss}
+            </span>
+          ))}
+        </div>
+      ) : (
+        <div className="text-center text-[10px] text-stone-300 h-full flex items-center justify-center">
+          —
+        </div>
+      )}
+    </div>
+  );
+})}                    
                      <div className="bg-stone-100 flex items-center justify-center text-[10px] text-stone-500">纳音</div>
                      {columns.map((col, i) => <div key={i} className="text-center py-1 text-[10px] text-stone-600 scale-90 whitespace-nowrap bg-stone-50/30 flex items-center justify-center">{col.ganZhi?.naYin}</div>)}
 
@@ -813,37 +900,29 @@ const ChartView: React.FC<{
                 </div>
             </div>
 
-            <div className="bg-white border border-stone-300 rounded-lg overflow-hidden shadow-sm">
-                <div className="bg-stone-600 text-stone-50 px-2 py-1.5 text-xs font-bold text-center border-b border-stone-500">{chart.startLuckText}</div>
-                <div className="flex overflow-x-auto divide-x divide-stone-200 no-scrollbar">
-                     {/* Render Xiao Yun if exists */}
-                     {chart.xiaoYun.length > 0 && chart.xiaoYun.map(xy => {
-                         const isActive = isXiaoYun && analysisYear === xy.year;
-                         return (
-                            <div key={xy.age} onClick={() => setAnalysisYear(xy.year)} className={`flex-1 min-w-[3rem] py-2 cursor-pointer transition-colors flex flex-col items-center ${isActive ? 'bg-indigo-100 ring-inset ring-2 ring-indigo-400' : 'bg-indigo-50 hover:bg-indigo-100'}`}>
-                                <span className="text-[9px] text-indigo-400 mb-1">{xy.age}岁</span>
-                                <div className="font-serif font-bold text-sm"><ElementText text={xy.ganZhi.gan} /></div>
-                                <div className="font-serif font-bold text-sm"><ElementText text={xy.ganZhi.zhi} /></div>
-                                <span className="text-[9px] text-indigo-400 mt-1">{xy.year}</span>
-                            </div>
-                         )
-                     })}
-                     <div className="min-w-[0.5rem] bg-stone-200"></div>
 
-                     {chart.luckPillars.map(l => { 
-                         const isActive = !isXiaoYun && selectedLuckIdx === l.index - 1;
-                         return (
-                            <div key={l.index} onClick={() => { setSelectedLuckIdx(l.index - 1); setAnalysisYear(l.startYear); }} className={`flex-1 min-w-[3rem] py-2 cursor-pointer transition-colors flex flex-col items-center ${isActive ? 'bg-amber-100 ring-inset ring-2 ring-amber-400' : 'bg-white hover:bg-stone-50'}`}>
-                                <span className="text-[9px] text-stone-400 mb-1">{l.startAge}岁</span>
-                                <div className="font-serif font-bold text-sm"><ElementText text={l.ganZhi.gan} /></div>
-                                <div className="font-serif font-bold text-sm"><ElementText text={l.ganZhi.zhi} /></div>
-                                <span className="text-[9px] text-stone-400 mt-1">{l.startYear}</span>
-                            </div>
-                         )
-                     })}
-                </div>
-            </div>
-
+<div className="flex overflow-x-auto divide-x divide-stone-200 no-scrollbar">
+  {chart.luckPillars.map(l => {
+    const isActive = !isXiaoYun && selectedLuckIdx === l.index - 1;
+    return (
+      <div
+        key={l.index}
+        onClick={() => {
+          setSelectedLuckIdx(l.index - 1);
+          setAnalysisYear(l.startYear);
+        }}
+        className={`flex-1 min-w-[3rem] py-2 cursor-pointer transition-colors flex flex-col items-center ${
+          isActive ? 'bg-amber-100 ring-inset ring-2 ring-amber-400' : 'bg-white hover:bg-stone-50'
+        }`}
+      >
+        <span className="text-[9px] text-stone-400 mb-1">{l.startAge}岁</span>
+        <div className="font-serif font-bold text-sm"><ElementText text={l.ganZhi.gan} /></div>
+        <div className="font-serif font-bold text-sm"><ElementText text={l.ganZhi.zhi} /></div>
+        <span className="text-[9px] text-stone-400 mt-1">{l.startYear}</span>
+      </div>
+    );
+  })}
+</div>
             <div className="bg-white border border-stone-300 rounded-lg overflow-hidden shadow-sm p-2">
                 <div className="text-xs font-bold text-stone-500 mb-2 px-1">流年选择 ({analysisYear})</div>
                 <div className="grid grid-cols-5 gap-1">
