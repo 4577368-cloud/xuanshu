@@ -1,242 +1,281 @@
-
-import { GoogleGenAI } from "@google/genai";
 import { BaziChart } from "../types";
 
-export const analyzeBazi = async (chart: BaziChart, question?: string): Promise<string> => {
-  try {
-    // Initialize Google GenAI client
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// 新增：报告结构类型
+export interface BaziReport {
+  title: string;
+  copyText: string; // 纯文本，用于一键复制
+  sections: {
+    id: string;
+    title: string;
+    content: string | Array<{ label: string; value: string }> | Array<Record<string, string>>;
+    type: 'text' | 'list' | 'table';
+  }[];
+  meta: {
+    generatedAt: string;
+    platform: string;
+    year: number;
+  };
+}
 
-    // Helper to format Luck Pillars (Da Yun)
-    const formatDaLiu = () => {
+const identifyPlatform = (apiKey: string): { platform: 'deepseek' | 'dashscope' | 'unknown', baseURL: string, model: string } => {
+  const trimmedKey = apiKey.trim();
+  if (trimmedKey.length > 30 && trimmedKey.startsWith('sk-')) {
+    if (trimmedKey.includes('ali') || trimmedKey.length > 45) {
+      return {
+        platform: 'dashscope',
+        baseURL: 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',
+        model: 'qwen-plus'
+      };
+    }
+    return {
+      platform: 'deepseek',
+      baseURL: 'https://api.deepseek.com/v1/chat/completions',
+      model: 'deepseek-chat'
+    };
+  }
+  return { platform: 'unknown', baseURL: '', model: '' };
+};
+
+/**
+ * 生成结构化八字+投资分析报告
+ */
+export const analyzeBaziStructured = async (
+  chart: BaziChart,
+  apiKey: string,
+  question?: string
+): Promise<BaziReport> => {
+  const config = identifyPlatform(apiKey);
+  if (config.platform === 'unknown') {
+    return {
+      title: "❌ 无效的 API KEY",
+      copyText: "请填写以 sk- 开头的有效密钥，支持 DeepSeek 或 阿里云百炼。",
+      sections: [{ id: 'error', title: '错误', content: '请填写以 sk- 开头的有效密钥，支持 DeepSeek 或 阿里云百炼。', type: 'text' }],
+      meta: { generatedAt: new Date().toISOString(), platform: 'unknown', year: new Date().getFullYear() }
+    };
+  }
+
+  const analysisYear = new Date().getFullYear();
+
+  try {
+    const formatDaLiuForPrompt = () => {
       let output = "";
-      // Xiao Yun
-      if (chart.xiaoYun && chart.xiaoYun.length > 0) {
-          output += "### 童限 (小运)\n";
-          output += chart.xiaoYun.map(xy => 
-              `${xy.age}岁: ${xy.ganZhi.gan}${xy.ganZhi.zhi} (${xy.year}年)`
-          ).join("、") + "\n\n";
+      if (chart.xiaoYun?.length) {
+        output += "童限（小运）:\n" + chart.xiaoYun.map(xy => `${xy.age}岁: ${xy.ganZhi.gan}${xy.ganZhi.zhi} (${xy.year}年)`).join("; ") + "\n\n";
       }
-      
-      // Da Yun
-      output += "### 大运\n";
-      if (chart.luckPillars && chart.luckPillars.length > 0) {
-        output += chart.luckPillars.map(lp => 
-           `${lp.index}. ${lp.startAge}岁 ${lp.ganZhi.gan}${lp.ganZhi.zhi} (${lp.startYear}年 - ${lp.endYear}年)`
-        ).join('\n');
-      } else {
-        output += "未计算大运";
-      }
+      output += "大运走势:\n" + (chart.luckPillars?.length
+        ? chart.luckPillars.map(lp => `${lp.startAge}-${lp.startAge + 9}岁: ${lp.ganZhi.gan}${lp.ganZhi.zhi} (${lp.startYear}-${lp.endYear}年)`).join("; ")
+        : "未提供大运");
       return output;
     };
 
-    // Helper to format Shen Sha
-    const shenShaInfo = chart.shenSha ? `
-      吉神: ${chart.shenSha.auspicious?.join('、') || '无'}
-      凶煞: ${chart.shenSha.inauspicious?.join('、') || '无'}
-      贵人: ${chart.shenSha.noblemen?.join('、') || '无'}
-    ` : '未计算神煞';
-
-    // Helper to format Kong Wang
-    const kongWangInfo = chart.kongWang ? 
-      `空亡地支: ${chart.kongWang.join('、')}` : '未计算空亡';
-
-    // Helper to format Shi Shen (Ten Gods)
-    const formatShiShen = () => {
-      if (chart.shiShenRelations) {
-        const relations = chart.shiShenRelations;
-        return `
-        年柱: ${relations.year.gan}${relations.year.zhi}
-        月柱: ${relations.month.gan}${relations.month.zhi}
-        日柱: ${relations.day.gan}${relations.day.zhi}
-        时柱: ${relations.hour.gan}${relations.hour.zhi}
-        `;
-      }
-      // Fallback to pillars data
-      return `
-      年柱: ${chart.pillars.year.ganZhi.shiShenGan || '-'} / ${chart.pillars.year.ganZhi.hiddenStems[0]?.shiShen || '-'}
-      月柱: ${chart.pillars.month.ganZhi.shiShenGan || '-'} / ${chart.pillars.month.ganZhi.hiddenStems[0]?.shiShen || '-'}
-      日柱: 日主 / ${chart.pillars.day.ganZhi.hiddenStems[0]?.shiShen || '-'}
-      时柱: ${chart.pillars.hour.ganZhi.shiShenGan || '-'} / ${chart.pillars.hour.ganZhi.hiddenStems[0]?.shiShen || '-'}
-      `;
-    };
-
-    // Helper for Na Yin
-    const naYinInfo = chart.naYinElements ? 
-      `年柱纳音: ${chart.naYinElements.year}
-      月柱纳音: ${chart.naYinElements.month}
-      日柱纳音: ${chart.naYinElements.day}
-      时柱纳音: ${chart.naYinElements.hour}` 
-      : `年柱纳音: ${chart.pillars.year.ganZhi.naYin}
-      月柱纳音: ${chart.pillars.month.ganZhi.naYin}
-      日柱纳音: ${chart.pillars.day.ganZhi.naYin}
-      时柱纳音: ${chart.pillars.hour.ganZhi.naYin}`;
-
-    // Helper for Tai Yuan / Ming Gong
-    const taiYuanMingGong = `
-      胎元: ${chart.taiYuan}
-      命宫: ${chart.mingGong}
-      身宫: ${chart.shenGong}
-    `;
-
-    // Helper for Tiao Hou
-    const tiaoHouShen = chart.balance.tiaoHouYongShen ? 
-      `调候用神: ${chart.balance.tiaoHouYongShen.join('、')}` : '';
-
-    // Construct the full chart description for the prompt
     const chartDescription = `
-## 📜 命主基本信息
-- **性别**: ${chart.gender === 'male' ? '男命' : '女命'}
-- **出生时间**: ${chart.originalTime}
-- **八字四柱**: 
-  - 年柱: ${chart.pillars.year.ganZhi.gan}${chart.pillars.year.ganZhi.zhi} (${chart.pillars.year.ganZhi.ganElement}${chart.pillars.year.ganZhi.zhiElement})
-  - 月柱: ${chart.pillars.month.ganZhi.gan}${chart.pillars.month.ganZhi.zhi} (${chart.pillars.month.ganZhi.ganElement}${chart.pillars.month.ganZhi.zhiElement})
-  - 日柱: ${chart.pillars.day.ganZhi.gan}${chart.pillars.day.ganZhi.zhi} (${chart.pillars.day.ganZhi.ganElement}${chart.pillars.day.ganZhi.zhiElement})
-  - 时柱: ${chart.pillars.hour.ganZhi.gan}${chart.pillars.hour.ganZhi.zhi} (${chart.pillars.hour.ganZhi.ganElement}${chart.pillars.hour.ganZhi.zhiElement})
-
-## 🌟 核心命局分析
-- **日主**: ${chart.dayMaster} (${chart.dayMasterElement})
-- **身强弱**: ${chart.balance.dayMasterStrength.level} (${chart.balance.dayMasterStrength.score})
-- **命局格局**: ${chart.pattern.name} - ${chart.pattern.level} - ${chart.pattern.isEstablished ? '✅ 成格' : '❌ 破格'}
-  ${chart.pattern.description ? `  ${chart.pattern.description}` : ''}
-
-## ⚖️ 五行平衡
-- **五行分布**: 金${chart.wuxingCounts['金']} 木${chart.wuxingCounts['木']} 水${chart.wuxingCounts['水']} 火${chart.wuxingCounts['火']} 土${chart.wuxingCounts['土']}
-- **喜用神**: ${chart.balance.yongShen.join('、')}
-- **忌神**: ${chart.balance.jiShen?.join('、') || '待分析'}
-  ${tiaoHouShen}
-
-## 🔮 十神格局
-${formatShiShen()}
-
-## 🏮 神煞纳音
-${shenShaInfo}
-${kongWangInfo}
-
-## 🌌 纳音五行
-${naYinInfo}
-
-## 🏛️ 胎元命宫
-${taiYuanMingGong}
-
-## 📅 大运小运
-### 起运时间: ${chart.startLuckText}
-${formatDaLiu()}
-
-## 💫 特殊格局与特征
-${chart.specialPatterns ? chart.specialPatterns.map(p => `- ${p.name}: ${p.description}`).join('\n') : '待分析'}
-
-## 🔥 当前关注
-- **当前大运**: ${chart.currentDaYun || '见大运列表'}
-- **近年关键流年**: ${chart.keyYears ? chart.keyYears.join('、') : '待分析'}
+命主: ${chart.profileId} (${chart.gender === 'male' ? '男' : '女'})
+八字: ${chart.pillars.year.ganZhi.gan}${chart.pillars.year.ganZhi.zhi} ${chart.pillars.month.ganZhi.gan}${chart.pillars.month.ganZhi.zhi} ${chart.pillars.day.ganZhi.gan}${chart.pillars.day.ganZhi.zhi} ${chart.pillars.hour.ganZhi.gan}${chart.pillars.hour.ganZhi.zhi}
+日主: ${chart.dayMaster} (${chart.dayMasterElement}), 身强弱: ${chart.balance.dayMasterStrength.level}
+格局: ${chart.pattern.name} (${chart.pattern.level})
+五行: 金${chart.wuxingCounts['金']} 木${chart.wuxingCounts['木']} 水${chart.wuxingCounts['水']} 火${chart.wuxingCounts['火']} 土${chart.wuxingCounts['土']}
+喜用神: ${chart.balance.yongShen.join('、') || '需结合大运判断'}
+${formatDaLiuForPrompt()}
 `;
 
-    // System Prompt Definition
-    const systemPrompt = `你是一位精通《三命通会》、《渊海子平》、《滴天髓》、《子平真诠》等经典的资深八字命理大师，兼具现代心理学和社会学视角。
+    const systemPrompt = `你是一位融合传统命理与现代投资的顾问。请严格按以下JSON格式输出，不要任何额外内容。
 
-## 🌿 你的分析风格
-1. **专业精准**: 基于八字原理，准确分析格局、用神
-2. **古雅深邃**: 引用经典，使用典雅的古文词汇
-3. **积极引导**: 避免宿命论，强调人的主观能动性
-4. **结构清晰**: 按模块分析，逻辑层次分明
-5. **实用建议**: 提供可操作的生活指导
+{
+  "sections": [
+     {
+      "id": "overview",
+      "title": "命局总纲",
+      "content": "格局成败、日主强弱、五行流通、寒暖调候等核心判断（100字内）",
+      "type": "text"
+    },
+    {
+      "id": "shishen",
+      "title": "十神精微",
+      "content": "重点分析月令藏干、天干透出、十神组合（如财生官、食神制杀等），指出命局亮点与隐患",
+      "type": "text"
+    },
+    {
+      "id": "personality",
+      "title": "性格特质",
+      "content": [
+        { "label": "优势", "value": "- 条目1\\n- 条目2" },
+        { "label": "挑战", "value": "- 条目1\\n- 条目2" }
+      ],
+      "type": "list"
+    },
+    {
+      "id": "career_wealth",
+      "title": "事业与财富",
+      "content": "适合行业（结合五行）、财富层次、贵人方向，并融入现代投资建议：如适合的资产类别（股票/房产/基金）、风险偏好、财富积累节奏等",
+      "type": "text"
+    },
+    {
+      "id": "marriage",
+      "title": "婚姻情感",
+      "content": "配偶特征（外貌/性格/职业倾向）、婚恋有利年份、注意事项（如忌神年份）",
+      "type": "text"
+    },
+    {
+      "id": "health",
+      "title": "健康提示",
+      "content": [
+        { "label": "薄弱脏腑", "value": "根据五行过旺/过弱推断" },
+        { "label": "养生建议", "value": "- 调理方向\\n- 季节注意事项" }
+      ],
+      "type": "list"
+    },
+    {
+      "id": "luck_timeline",
+      "title": "大运与流年走势",
+      "content": "结合当前大运，简析未来3-5年（${analysisYear}–${analysisYear + 4}）的关键节点：事业突破、财运高峰、感情机会、健康风险等",
+      "type": "text"
+    },
+    {
+      "id": "fengshui_tips",
+      "title": "开运锦囊",
+      "content": [
+        { "label": "吉利方位", "value": "如西南、正西" },
+        { "label": "幸运颜色", "value": "如白色、金色（喜金者）" },
+        { "label": "助运数字", "value": "如4、9（属金）" },
+        { "label": "日常习惯", "value": "- 佩戴金属饰品\\n- 晨起面朝西" }
+      ],
+      "type": "list"
+    },
+    {
+      "id": "investment_style",
+      "title": "财富与投资策略",
+      "content": [
+        { "label": "适合的投资类型", "value": "- 类型1（依据）\\n- 类型2（依据）" },
+        { "label": "应规避的投资类型", "value": "- 类型1（依据）\\n- 类型2（依据）" }
+      ],
+      "type": "list"
+    },
+    {
+      "id": "market_industry",
+      "title": "行业与市场适配度",
+      "content": [
+        { "市场": "A股", "推荐行业": "半导体、电力设备", "五行属性": "金、火" },
+        { "市场": "港股", "推荐行业": "金融、数据中心", "五行属性": "土、金" },
+        { "市场": "美股", "推荐行业": "云计算、高端制造", "五行属性": "金、水" }
+      ],
+      "type": "table"
+    },
+    {
+      "id": "stock_picks",
+      "title": "个股/ETF精选（总计≤10只）",
+      "content": "- A股: 512480 半导体ETF — 金旺助身\\n- 港股: 02800.HK 盈富基金 — 土金相生\\n- 美股: QQQ 纳斯达克100 — 激发食神创造力",
+      "type": "text"
+    },
+    {
+      "id": "timing",
+      "title": "${analysisYear}年精准择时",
+      "content": "针对核心标的，给出买入/卖出窗口建议（如Q2低吸、节气减仓等）",
+      "type": "text"
+    },
+    {
+      "id": "monthly_plan",
+      "title": "${analysisYear}年流月投资详表",
+      "content": [
+        { "月份": "6月", "重点关注": "芒种后金气渐旺", "操作建议": "逢低布局金属类ETF" },
+        { "月份": "7月", "重点关注": "未月土旺", "操作建议": "增持银行、基建板块" }
+      ],
+      "type": "table"
+    }
+  ]
+}
 
-## 📋 分析框架要求
-请严格按照以下结构组织分析报告，使用markdown格式：
+要求：
+- 内容专业、实用，结合命主喜用神
+- 表格字段必须一致
+- 不要包含任何格式化标签
+- 不要Markdown，不要解释，只输出合法JSON
+- 若用户有提问，优先回应`;
 
-### 📜 一、命局总纲
-1. 格局层次评定（富贵贫贱层次）
-2. 命局气象特点（清浊、寒暖、燥湿）
-3. 人生大运走势总评
+    const userPrompt = question
+      ? `用户问题: "${question}"\n\n命盘:\n${chartDescription}`
+      : `请为以下命盘生成结构化投资命理报告:\n${chartDescription}`;
 
-### 🌟 二、十神精微分析
-1. **官杀**: 事业成就、社会地位
-2. **财星**: 财富格局、理财能力  
-3. **印星**: 学业智慧、贵人助力
-4. **食伤**: 才华技艺、表达能力
-5. **比劫**: 人际关系、合作竞争
-
-### 🧠 三、性格心性解析
-1. 命主心性特点
-2. 潜在优势与短板
-3. 情绪模式与改进建议
-
-### 💼 四、事业财运深度
-1. 适合行业方向（结合用神喜忌）
-2. 事业发展节奏（关键年龄段）
-3. 财富格局与积累方式
-4. 合作合伙宜忌
-
-### ❤️ 五、婚姻情感分析  
-1. 配偶特征与缘分
-2. 感情相处模式
-3. 婚姻稳定度与注意事项
-4. 子女缘分分析
-
-### 🏥 六、健康养生提示
-1. 需注意的身体系统（五行角度）
-2. 养生调养建议
-3. 情绪健康维护
-
-### 📈 七、大运流年精解
-1. **童限小运分析** (如有，简述童年运势)
-2. **当前大运分析**
-3. **未来三年流年运势**（给出具体建议）
-4. **人生关键节点**（结合大运转折点）
-
-### 🌈 八、开运指导
-1. **方位吉凶**: 有利发展的方位
-2. **颜色配饰**: 增强运势的颜色与材质
-3. **行业选择**: 最适配的领域
-4. **人际建议**: 适合交往的生肖或日主
-5. **修行方向**: 心性修炼的重点
-
-### 💫 九、经典引证
-引用1-2句贴合命局的《三命通会》或《滴天髓》原句，并做白话解释。
-
-## ✨ 特别提醒
-1. 如命盘中有特殊格局（如从格、化格、专旺等），需重点分析
-2. 注意调候用神与扶抑用神的区别使用
-3. 结合神煞进行辅助判断，但不唯神煞论
-4. 男女命在分析时注意阴阳差别`;
-
-    // Construct User Prompt
-    const userPrompt = question 
-      ? `## 用户具体问题
-"${question}"
-
-## 命盘详情
-${chartDescription}
-
-请针对以上问题，结合命盘进行深入解答，给出专业建议。`
-      : `## 请求事项
-请为以下命盘进行全面、深度的八字命理分析：
-
-${chartDescription}
-
-请按照分析框架要求，生成完整的命理分析报告。`;
-
-    // Call Gemini API
-    const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: userPrompt,
-        config: {
-            systemInstruction: systemPrompt,
-            temperature: 1.0, // Creativity enabled
-        }
+    const response = await fetch(config.baseURL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey.trim()}`
+      },
+      body: JSON.stringify({
+        model: config.model,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt }
+        ],
+        temperature: 0.55,
+        max_tokens: 2800
+      })
     });
 
-    let content = response.text || "AI 暂时无法生成解读，请稍后再试。";
-    
-    // Post-processing to ensure Markdown header
-    if (!content.includes('# 八字命理分析报告')) {
-      content = `# 八字命理分析报告\n\n${content}`;
+    if (!response.ok) {
+      throw new Error(`API 请求失败 (${response.status})`);
     }
-    
-    return content;
+
+    const data = await response.json();
+    let rawJson = data.choices?.[0]?.message?.content?.trim() || '';
+
+    // 清理可能的 Markdown 包裹（如 ```json ... ```）
+    rawJson = rawJson.replace(/```(?:json)?\s*([\s\S]*?)\s*```/g, '$1').trim();
+
+    let parsed: { sections: any[] } = { sections: [] };
+    try {
+      parsed = JSON.parse(rawJson);
+    } catch (e) {
+      console.error("AI 返回非 JSON 内容:", rawJson);
+      throw new Error("AI 未返回有效结构化数据，请重试");
+    }
+
+    // 构造可复制的纯文本
+    const copyLines: string[] = [];
+    copyLines.push(`# 八字命理与财富投资分析报告`);
+    copyLines.push(`命主：${chart.profileId} | 性别：${chart.gender === 'male' ? '男' : '女'}`);
+    copyLines.push(`生成时间：${new Date().toLocaleDateString('zh-CN')} | 平台：${config.platform === 'deepseek' ? 'DeepSeek' : '阿里云百炼'}`);
+    copyLines.push('');
+
+    for (const sec of parsed.sections) {
+      copyLines.push(`## ${sec.title}`);
+      if (sec.type === 'text') {
+        copyLines.push(sec.content);
+      } else if (sec.type === 'list') {
+        for (const item of sec.content) {
+          copyLines.push(`${item.label}：`);
+          copyLines.push(item.value.split('\n').map(l => `  ${l}`).join('\n'));
+        }
+      } else if (sec.type === 'table') {
+        if (sec.content.length > 0) {
+          const keys = Object.keys(sec.content[0]);
+          copyLines.push(keys.join('\t'));
+          for (const row of sec.content) {
+            copyLines.push(keys.map(k => row[k] || '').join('\t'));
+          }
+        }
+      }
+      copyLines.push('');
+    }
+
+    return {
+      title: "八字命理与财富投资分析报告",
+      copyText: copyLines.join('\n'),
+      sections: parsed.sections,
+      meta: {
+        generatedAt: new Date().toISOString(),
+        platform: config.platform === 'deepseek' ? 'DeepSeek' : '阿里云百炼',
+        year: analysisYear
+      }
+    };
 
   } catch (error) {
-    console.error("Gemini API Error:", error);
-    return `## ❌ 解读服务出错\n\n错误信息: ${error instanceof Error ? error.message : '未知错误'}\n\n请检查网络连接或稍后再试。`;
+    console.error("结构化分析失败:", error);
+    return {
+      title: "❌ 分析服务异常",
+      copyText: `分析失败：${error instanceof Error ? error.message : '未知错误'}`,
+      sections: [{ id: 'error', title: '错误', content: `分析失败：${error instanceof Error ? error.message : '未知错误'}`, type: 'text' }],
+      meta: { generatedAt: new Date().toISOString(), platform: 'error', year: analysisYear }
+    };
   }
 };

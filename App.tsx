@@ -3,9 +3,9 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { BottomNav, Header } from './components/Layout';
 import { AppTab, ChartSubTab, UserProfile, BaziChart, Gender, TrendActivation, Pillar, GanZhi, BalanceAnalysis, AnnualFortune, PatternAnalysis, InterpretationResult, AiReportRecord, ModalData } from './types';
 import { calculateBazi, getGanZhiForYear, calculateAnnualTrend, calculateAnnualFortune, getAdvancedInterpretation } from './services/baziService';
-import { analyzeBazi } from './services/geminiService';
+import { analyzeBaziStructured, BaziReport } from './services/geminiService';
 import { getArchives, saveArchive, deleteArchive, saveAiReportToArchive, updateArchiveTags, updateArchiveAvatar, updateArchiveName } from './services/storageService';
-import { User, Calendar, ArrowRight, Activity, BrainCircuit, RotateCcw, ChevronDown, Info, BarChart3, Tag, Zap, ScrollText, Stars, Clock, X, BookOpen, Compass, AlertTriangle, CheckCircle, MinusCircle, Crown, Search, Key, Sparkles, Smile, Heart, Star, Sun, Moon, Cloud, Ghost, Flower2, Bird, Cat, Edit2, Trash2, Plus, Copy, FileText, ChevronRight, Play, MapPin, Check, History, ClipboardCopy, Building, Baby, GitCommitHorizontal } from 'lucide-react';
+import { User, Calendar, ArrowRight, Activity, BrainCircuit, RotateCcw, ChevronDown, Info, BarChart3, Tag, Zap, ScrollText, Stars, Clock, X, BookOpen, Compass, AlertTriangle, CheckCircle, MinusCircle, Crown, Search, Key, Sparkles, Smile, Heart, Star, Sun, Moon, Cloud, Ghost, Flower2, Bird, Cat, Edit2, Trash2, Plus, Copy, FileText, ChevronRight, Play, MapPin, Check, History, ClipboardCopy, Building, Baby, GitCommitHorizontal, Eye, EyeOff, ShieldCheck, Quote, TrendingUp, CalendarDays, Briefcase, LayoutPanelLeft } from 'lucide-react';
 import { 
   HEAVENLY_STEMS, 
   EARTHLY_BRANCHES, 
@@ -128,18 +128,6 @@ const ChartInfoCard: React.FC<{ chart: BaziChart }> = ({ chart }) => {
         </div>
     );
 };
-
-const TipBox: React.FC<{ title: string; icon?: React.ElementType; children: React.ReactNode }> = ({ title, icon: Icon = ScrollText, children }) => (
-  <div className="bg-white rounded-lg border border-stone-200 overflow-hidden mb-3 shadow-sm">
-    <div className="bg-stone-50/80 px-3 py-2 border-b border-stone-100 flex items-center gap-2">
-      <Icon size={14} className="text-amber-600" />
-      <h4 className="text-sm font-bold text-stone-800">{title}</h4>
-    </div>
-    <div className="p-3 text-xs text-stone-600 leading-relaxed">
-      {children}
-    </div>
-  </div>
-);
 
 const BalanceCard: React.FC<{ balance: BalanceAnalysis; dm: string }> = ({ balance, dm }) => {
   const { dayMasterStrength, yongShen, xiShen, jiShen, method, advice } = balance;
@@ -293,7 +281,7 @@ const TipsView: React.FC<{ chart: BaziChart | null }> = ({ chart }) => {
           return { bg: 'bg-sky-50', border: 'border-sky-100', text: 'text-sky-800', tagBg: 'bg-sky-100', tagText: 'text-sky-700', desc: 'text-sky-900/70', icon: Zap };
       }
       if (name.includes('禄') || name.includes('羊刃') || name.includes('飞刃') || name.includes('金神') || name.includes('魁罡') || name.includes('国印')) {
-          return { bg: 'bg-emerald-50', border: 'border-emerald-100', text: 'text-emerald-800', tagBg: 'bg-emerald-100', tagText: 'text-emerald-700', desc: 'text-emerald-900/70', icon: Crown };
+          return { bg: 'bg-emerald-50', border: 'border-emerald-100', text: 'text-emerald-800', tagBg: 'bg-emerald-100', tagText: 'text-emerald-700', desc: 'text-amber-900/70', icon: Crown };
       }
       if (name.includes('华盖') || name.includes('孤辰') || name.includes('寡宿') || name.includes('天医') || name.includes('六秀') || name.includes('太极')) {
           return { bg: 'bg-violet-50', border: 'border-violet-100', text: 'text-violet-800', tagBg: 'bg-violet-100', tagText: 'text-violet-700', desc: 'text-violet-900/70', icon: BookOpen };
@@ -624,14 +612,19 @@ const ChartView: React.FC<{
 }> = ({ profile, chart, onReset, onShowModal, initialSubTab, onSaveReport }) => {
   const [activeSubTab, setActiveSubTab] = useState<ChartSubTab>(initialSubTab || ChartSubTab.BASIC);
   const [loadingAi, setLoadingAi] = useState(false);
-  const [aiReport, setAiReport] = useState(profile.aiReports?.[0]?.content || '');
+  const [aiReportStructured, setAiReportStructured] = useState<BaziReport | null>(null);
   const [selectedLuckIdx, setSelectedLuckIdx] = useState(0);
   const [analysisYear, setAnalysisYear] = useState(new Date().getFullYear());
   const [annualFortune, setAnnualFortune] = useState<AnnualFortune | null>(null);
+  
+  // AI API KEY State
+  const [apiKey, setApiKey] = useState(() => localStorage.getItem('ai_api_key') || '');
+  const [showApiKey, setShowApiKey] = useState(false);
 
   useEffect(() => {
-    setAiReport(profile.aiReports?.[0]?.content || '');
-  }, [profile.id, profile.aiReports]);
+    // If there's an existing report in the profile, we don't have its structured format,
+    // so we'll just show the text if available.
+  }, [profile.id]);
 
   useEffect(() => {
     if (chart && chart.luckPillars) {
@@ -649,12 +642,34 @@ const ChartView: React.FC<{
   }, [analysisYear, chart]);
 
   const handleAiAnalysis = async () => {
+    if (!apiKey.trim()) {
+      alert("请先填入 API KEY 才可以开始深度分析。");
+      return;
+    }
     setLoadingAi(true);
-    const result = await analyzeBazi(chart);
-    setAiReport(result);
-    onSaveReport(result);
-    setLoadingAi(false);
+    try {
+        const result = await analyzeBaziStructured(chart, apiKey);
+        setAiReportStructured(result);
+        onSaveReport(result.copyText);
+    } catch (error) {
+        console.error("AI Analysis failed:", error);
+    } finally {
+        setLoadingAi(false);
+    }
   };
+
+  const handleApiKeyChange = (val: string) => {
+    setApiKey(val);
+    localStorage.setItem('ai_api_key', val);
+  };
+
+  // Helper to detect platform
+  const detectedPlatform = useMemo(() => {
+    if (!apiKey) return null;
+    if (apiKey.includes('ali') || apiKey.length > 45) return { name: '阿里云百炼', color: 'text-orange-600 bg-orange-50' };
+    if (apiKey.startsWith('sk-')) return { name: 'DeepSeek', color: 'text-blue-600 bg-blue-50' };
+    return null;
+  }, [apiKey]);
 
   const openModal = (
       pillarName: string,
@@ -797,7 +812,7 @@ const ChartView: React.FC<{
                     {Array.from({length: 10}).map((_, i) => {
                         const lp = isXiaoYun ? { startYear: chart.xiaoYun[0]?.year || new Date().getFullYear() - 5 } : chart.luckPillars[selectedLuckIdx];
                         if (!lp) return <div key={i}></div>;
-                        const y = lp.startYear + i;
+                        const y = (lp.startYear as number) + i;
                         const gz = getGanZhiForYear(y, chart.dayMaster);
                         const isSelected = analysisYear === y;
                         
@@ -834,6 +849,18 @@ const ChartView: React.FC<{
     );
   };
 
+  const getSectionIcon = (id: string) => {
+    switch (id) {
+        case 'overview': return <Quote className="text-indigo-400" size={18} />;
+        case 'investment_style': return <TrendingUp className="text-emerald-500" size={18} />;
+        case 'market_industry': return <Briefcase className="text-amber-500" size={18} />;
+        case 'stock_picks': return <Stars className="text-purple-500" size={18} />;
+        case 'timing': return <Clock className="text-rose-400" size={18} />;
+        case 'monthly_plan': return <CalendarDays className="text-sky-500" size={18} />;
+        default: return <LayoutPanelLeft className="text-stone-400" size={18} />;
+    }
+  };
+
   return (
     <div className="flex flex-col h-full bg-white">
       {/* Sub Tabs */}
@@ -856,46 +883,161 @@ const ChartView: React.FC<{
 
          {activeSubTab === ChartSubTab.ANALYSIS && (
              <div className="space-y-4 pb-12">
-                 {!aiReport && !loadingAi && (
-                     <div className="mt-6">
+                 {/* API KEY Input Section */}
+                 <div className="bg-white border border-stone-200 rounded-xl p-4 shadow-sm mb-4">
+                     <div className="flex items-center justify-between mb-3">
+                         <div className="flex items-center gap-2">
+                             <Key size={16} className="text-amber-600" />
+                             <h4 className="text-sm font-bold text-stone-800 font-serif">设置 AI 密令</h4>
+                         </div>
+                         {detectedPlatform && (
+                             <div className={`flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-bold border ${detectedPlatform.color}`}>
+                                 <ShieldCheck size={10} />
+                                 {detectedPlatform.name}
+                             </div>
+                         )}
+                     </div>
+                     <div className="relative">
+                         <input 
+                             type={showApiKey ? "text" : "password"} 
+                             value={apiKey}
+                             onChange={(e) => handleApiKeyChange(e.target.value)}
+                             placeholder="填入 DeepSeek 或 百炼 API KEY..."
+                             className="w-full bg-stone-50 border border-stone-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-amber-200 pr-10 font-mono"
+                         />
+                         <button 
+                             onClick={() => setShowApiKey(!showApiKey)}
+                             className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600"
+                         >
+                             {showApiKey ? <EyeOff size={16} /> : <Eye size={16} />}
+                         </button>
+                     </div>
+                     <p className="text-[10px] text-stone-400 mt-2 italic leading-tight">
+                         * 填写后启用 AI 深度投资命理分析。识别 DeepSeek 或 阿里云百炼。
+                     </p>
+                 </div>
+
+                 {!aiReportStructured && !loadingAi && (
+                     <div className="mt-2">
                         <button
                             onClick={handleAiAnalysis}
-                            className="w-full bg-stone-900 text-white font-bold py-4 rounded-xl shadow-lg flex items-center justify-center gap-2 hover:bg-stone-800 transition-all"
+                            disabled={!apiKey.trim()}
+                            className={`w-full font-bold py-4 rounded-xl shadow-lg flex items-center justify-center gap-2 transition-all ${apiKey.trim() ? 'bg-stone-900 text-white hover:bg-stone-800 active:scale-[0.98]' : 'bg-stone-200 text-stone-400 cursor-not-allowed'}`}
                         >
-                            <Sparkles />
-                            AI 深度命理分析
+                            <BrainCircuit size={20} />
+                            开启结构化深度报告
                         </button>
+                        {!apiKey.trim() && <p className="text-center text-xs text-rose-500 mt-3 font-medium animate-pulse">需填写上方 API KEY 后开启推演</p>}
                      </div>
                  )}
 
                  {loadingAi && (
                      <div className="mt-6 flex flex-col items-center justify-center py-12 text-stone-400">
                          <Activity className="animate-spin mb-4 text-indigo-500" size={32} />
-                         <p>大师正在潜心推演...</p>
+                         <p className="font-serif">正在融合传统命理与投资数据...</p>
+                         <p className="text-[10px] mt-2 opacity-60">调用大师模型中，请耐心等待</p>
                      </div>
                  )}
 
-                 {!loadingAi && aiReport && (
-                    <div className="mt-4 bg-white border border-indigo-100 rounded-xl p-5 shadow-sm ring-4 ring-indigo-50/50">
-                         <div className="flex items-center justify-between mb-4 border-b border-indigo-50 pb-3">
-                             <div className="flex items-center gap-2">
-                                 <BrainCircuit size={20} className="text-indigo-600" />
-                                 <h3 className="font-bold text-stone-800">大师解读报告</h3>
+                 {!loadingAi && aiReportStructured && (
+                    <div className="mt-4 space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                         <div className="bg-white border border-indigo-100 rounded-xl p-5 shadow-sm ring-4 ring-indigo-50/50">
+                             <div className="flex items-center justify-between mb-6 border-b border-indigo-50 pb-4">
+                                 <div className="flex items-center gap-2">
+                                     <Sparkles size={20} className="text-amber-500" />
+                                     <h3 className="font-bold text-stone-800 font-serif">深度财富推演报告</h3>
+                                 </div>
+                                 <div className="flex items-center gap-2">
+                                    <button 
+                                        onClick={handleAiAnalysis}
+                                        className="text-xs flex items-center gap-1 bg-stone-100 hover:bg-stone-200 text-stone-600 px-2 py-1 rounded-lg transition-colors font-medium"
+                                    >
+                                        <RotateCcw size={12} />
+                                        重推
+                                    </button>
+                                 </div>
                              </div>
-                             <div className="flex items-center gap-2">
-                                <span className="text-[10px] bg-indigo-50 text-indigo-600 px-2 py-1 rounded-full border border-indigo-100 hidden sm:inline-block">Gemini 3 Flash</span>
-                                <button 
-                                    onClick={handleAiAnalysis}
-                                    className="text-xs flex items-center gap-1 bg-stone-100 hover:bg-stone-200 text-stone-600 px-2 py-1 rounded-lg transition-colors"
-                                >
-                                    <RotateCcw size={12} />
-                                    重新推演
-                                </button>
+                             
+                             <div className="space-y-8">
+                                {aiReportStructured.sections.map((section) => (
+                                    <div key={section.id} className="group">
+                                        <div className="flex items-center gap-2 mb-3">
+                                            {getSectionIcon(section.id)}
+                                            <h4 className="font-bold text-stone-800 text-base font-serif">
+                                                {section.title}
+                                            </h4>
+                                        </div>
+                                        
+                                        {section.type === 'text' && (
+                                            <div className="text-sm text-stone-600 leading-relaxed font-serif bg-stone-50/50 p-4 rounded-xl border border-stone-100 italic relative">
+                                                <div className="absolute top-0 left-0 w-1 h-full bg-indigo-200 rounded-l-xl"></div>
+                                                {section.content as string}
+                                            </div>
+                                        )}
+                                        
+                                        {section.type === 'list' && (
+                                            <div className="space-y-3">
+                                                {(section.content as any[]).map((item, idx) => (
+                                                    <div key={idx} className="bg-white p-3 rounded-xl border border-stone-200 shadow-sm hover:border-indigo-200 transition-colors">
+                                                        <span className="text-[10px] font-bold text-stone-400 block mb-1 uppercase tracking-widest">{item.label}</span>
+                                                        <p className="text-sm text-stone-600 whitespace-pre-wrap leading-relaxed">{item.value}</p>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                        
+                                        {section.type === 'table' && (
+                                            <div className="overflow-hidden rounded-xl border border-stone-200 shadow-sm">
+                                                <div className="overflow-x-auto no-scrollbar">
+                                                    <table className="w-full text-xs text-left border-collapse">
+                                                        <thead>
+                                                            <tr className="bg-stone-50 text-stone-500 font-bold uppercase tracking-tight">
+                                                                {Object.keys((section.content as any[])[0] || {}).map((key) => (
+                                                                    <th key={key} className="px-4 py-3 border-b border-stone-100">{key}</th>
+                                                                ))}
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody className="divide-y divide-stone-50">
+                                                            {(section.content as any[]).map((row, idx) => (
+                                                                <tr key={idx} className="bg-white hover:bg-stone-50 transition-colors">
+                                                                    {Object.values(row).map((val: any, vIdx) => (
+                                                                        <td key={vIdx} className="px-4 py-3 text-stone-700 font-medium">
+                                                                            {val}
+                                                                        </td>
+                                                                    ))}
+                                                                </tr>
+                                                            ))}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                             </div>
+                             
+                             <div className="mt-10 pt-6 border-t border-stone-100 flex items-center justify-between text-[10px] text-stone-400 italic">
+                                <div className="flex items-center gap-1">
+                                    <CalendarDays size={10} />
+                                    <span>推演于: {new Date(aiReportStructured.meta.generatedAt).toLocaleDateString()}</span>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                    <Activity size={10} />
+                                    <span>驱动: {aiReportStructured.meta.platform}</span>
+                                </div>
                              </div>
                          </div>
-                         <div className="prose prose-stone prose-sm max-w-none font-serif leading-relaxed whitespace-pre-wrap text-justify">
-                             {aiReport}
-                         </div>
+                         
+                         <button 
+                            onClick={() => {
+                                navigator.clipboard.writeText(aiReportStructured.copyText);
+                                alert("深度报告已复制到剪贴板，建议保存至笔记应用。");
+                            }}
+                            className="w-full flex items-center justify-center gap-2 bg-stone-900 text-stone-100 py-4 rounded-xl font-bold hover:bg-stone-800 transition-all shadow-lg active:scale-[0.98]"
+                         >
+                             <ClipboardCopy size={18} />
+                             一键保存完整文本报告
+                         </button>
                     </div>
                  )}
              </div>
@@ -1031,7 +1173,7 @@ const ReportHistoryModal: React.FC<{
                                         {copiedId === report.id ? '已复制' : '复制全文'}
                                     </button>
                                 </div>
-                                <p className="text-xs text-stone-600 line-clamp-3 leading-relaxed opacity-80">
+                                <p className="text-xs text-stone-600 line-clamp-3 leading-relaxed opacity-80 whitespace-pre-wrap font-serif">
                                     {report.content}
                                 </p>
                             </div>

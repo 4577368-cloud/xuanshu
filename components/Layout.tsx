@@ -11,7 +11,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({ currentTab, onTabChange })
   const tabs = [
     { id: AppTab.HOME, label: '首页', icon: Home },
     { id: AppTab.CHART, label: '命盘', icon: Compass },
-    { id: AppTab.TIPS, label: '提示', icon: Sparkles },
+    { id: AppTab.TIPS, label: '知识', icon: Sparkles },
     { id: AppTab.ARCHIVE, label: '档案', icon: FileText },
   ];
 
