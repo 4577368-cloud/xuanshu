@@ -508,9 +508,9 @@ const handleSubmit = (e: React.FormEvent) => {
   return (
     <div className="flex flex-col h-full bg-white p-6 overflow-y-auto pb-24">
        <div className="text-center mb-6 mt-4">
-           <div className="w-16 h-16 bg-stone-900 rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-lg transform rotate-3">
-               <Compass size={32} className="text-amber-500" />
-           </div>
+       <div className="w-16 h-16 mx-auto mb-3 shadow-lg">
+    <img src="https://imgus.tangbuy.com/static/images/2026-01-10/631ac4d3602b4f508bb0cad516683714-176803435086117897846087613804795.png" className="w-full h-full object-contain rounded-2xl" alt="Logo" />
+</div>   
            <h2 className="text-2xl font-serif font-bold text-stone-800 tracking-wider">玄枢命理</h2>
            <p className="text-xs text-stone-400 mt-1 tracking-widest uppercase">传统八字 · 深度解析</p>
        </div>
@@ -1520,7 +1520,7 @@ const App: React.FC = () => {
   const getTitle = () => {
       switch (currentTab) {
           case AppTab.HOME: return '玄枢命理';
-          case AppTab.CHART: return currentProfile ? `${currentProfile.name}的命盘` : '命盘推演';
+          case AppTab.CHART: return currentProfile ? `${currentProfile.name}命盘` : '命盘推演';
           case AppTab.TIPS: return '命理提示';
           case AppTab.ARCHIVE: return '档案管理';
           default: return '玄枢命理';
