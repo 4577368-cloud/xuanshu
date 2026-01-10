@@ -13,3 +13,29 @@ root.render(
     <App />
   </React.StrictMode>
 );
+
+// ==============================
+// ✅ PWA Service Worker 注册（安全、无报错）
+// ==============================
+if ('serviceWorker' in navigator) {
+  // 兼容 Vite 和 Create React App 的生产环境检测
+  const isProduction =
+    (typeof process !== 'undefined' && process.env.NODE_ENV === 'production') ||
+    (typeof import.meta !== 'undefined' && import.meta.env?.PROD);
+
+  if (isProduction) {
+    window.addEventListener('load', () => {
+      // ✅ 确保 Service Worker URL 与当前页面同源（解决跨域错误）
+      const swUrl = new URL('/sw.js', window.location.origin).toString();
+
+      navigator.serviceWorker
+        .register(swUrl)
+        .then((registration) => {
+          console.log('✅ PWA Service Worker registered:', registration.scope);
+        })
+        .catch((error) => {
+          console.warn('⚠️ PWA Service Worker registration failed:', error);
+        });
+    });
+  }
+}
