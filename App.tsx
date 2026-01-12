@@ -1081,7 +1081,7 @@ const columns = [
                                  <ShieldCheck size={10} />
                                  {detectedPlatform.name}
                              </div>
-                         )}
+                         )} 
                      </div>
                      <div className="relative">
                          <input 
