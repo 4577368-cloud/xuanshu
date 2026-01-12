@@ -137,9 +137,155 @@ const ChartInfoCard: React.FC<{ chart: BaziChart }> = ({ chart }) => {
     );
 };
 
+// 🎨 [新组件] 紧凑型五行直方图 (带智能解读)
+const FiveElementsCompact: React.FC<{ chart: BaziChart }> = ({ chart }) => {
+  const max = Math.max(...Object.values(chart.wuxingCounts), 1);
+  const colors: Record<string, string> = { '木': 'bg-emerald-500', '火': 'bg-rose-500', '土': 'bg-amber-500', '金': 'bg-slate-400', '水': 'bg-blue-500' };
+  const textColors: Record<string, string> = { '木': 'text-emerald-600', '火': 'text-rose-600', '土': 'text-amber-600', '金': 'text-slate-500', '水': 'text-blue-600' };
+
+  // 智能解读逻辑
+  const getComment = () => {
+    const entries = Object.entries(chart.wuxingCounts);
+    const sorted = [...entries].sort((a, b) => b[1] - a[1]);
+    const strongest = sorted[0];
+    const weakest = sorted[sorted.length - 1];
+    
+    const descriptions: Record<string, { strong: string, weak: string }> = {
+        '木': { strong: '仁慈但固执，需防好心办坏事。', weak: '意志薄弱，缺乏主见，容易动摇。' },
+        '火': { strong: '热情急躁，做事冲动，爆发力强。', weak: '缺乏动力，冷淡消极，行动力差。' },
+        '土': { strong: '诚实厚重，但也固执死板，不懂变通。', weak: '信用不足，虚浮不实，根基不稳。' },
+        '金': { strong: '刚毅果决，讲义气但好勇斗狠。', weak: '优柔寡断，缺乏决断力，容易受欺。' },
+        '水': { strong: '聪明机智，但也多变狡诈，随波逐流。', weak: '反应迟钝，缺乏谋略，适应力差。' }
+    };
+
+    return (
+        <div className="mt-3 text-xs text-stone-600 bg-stone-50 p-2 rounded border border-stone-100 space-y-1">
+            <div className="flex gap-2">
+                <span className="font-bold text-stone-800 shrink-0">✨ 最旺五行 [{strongest[0]}]:</span>
+                <span>{descriptions[strongest[0]].strong}</span>
+            </div>
+            {weakest[1] === 0 && (
+                <div className="flex gap-2">
+                    <span className="font-bold text-stone-400 shrink-0">⚠️ 缺失五行 [{weakest[0]}]:</span>
+                    <span className="text-stone-500">{descriptions[weakest[0]].weak}</span>
+                </div>
+            )}
+        </div>
+    );
+  };
+
+  return (
+    <div className="bg-white rounded-xl border border-stone-200 p-4 shadow-sm">
+      <div className="flex items-center justify-between mb-3">
+        <h4 className="font-bold text-sm text-stone-800 flex items-center gap-2">
+          <BarChart3 size={16} className="text-stone-400"/> 五行能量分布
+        </h4>
+      </div>
+      <div className="flex justify-around items-end h-24 pt-2 border-b border-stone-100 pb-2">
+        {['木', '火', '土', '金', '水'].map(el => {
+          const count = chart.wuxingCounts[el] || 0;
+          const heightPercent = (count / max) * 100;
+          return (
+            <div key={el} className="flex flex-col items-center gap-1 group w-1/5">
+              <span className={`text-xs font-bold ${textColors[el]}`}>{count}</span>
+              <div className="w-full max-w-[24px] bg-stone-100 rounded-t-lg h-16 relative overflow-hidden flex items-end">
+                 <div 
+                    className={`w-full ${colors[el]} transition-all duration-700 ease-out rounded-t-sm opacity-80 group-hover:opacity-100`} 
+                    style={{ height: `${heightPercent || 5}%` }}
+                 ></div>
+              </div>
+              <span className="text-[10px] font-bold text-stone-500">{el}</span>
+            </div>
+          )
+        })}
+      </div>
+      {getComment()}
+    </div>
+  );
+};
+
+// 🎨 [新组件] 紧凑型藏干网格 (带内心解读)
+const HiddenStemsCompact: React.FC<{ chart: BaziChart }> = ({ chart }) => {
+  // 获取日支（夫妻宫/内心宫）的主气
+  const dayPillar = chart.pillars.day;
+  const mainQi = dayPillar.ganZhi.hiddenStems.find(h => h.type === '主气');
+  
+  return (
+    <div className="bg-white rounded-xl border border-stone-200 p-4 shadow-sm">
+      <h4 className="font-bold text-sm text-stone-800 mb-3 flex items-center gap-2">
+        <Search size={16} className="text-stone-400"/> 藏干透视 (内心潜能)
+      </h4>
+      <div className="grid grid-cols-4 divide-x divide-stone-100 mb-3">
+        {['year', 'month', 'day', 'hour'].map(key => {
+            const p = chart.pillars[key as keyof typeof chart.pillars];
+            return (
+                <div key={key} className="flex flex-col items-center px-1">
+                    <span className="text-[9px] text-stone-400 uppercase mb-1 tracking-wider">{p.name}</span>
+                    <div className="flex flex-col gap-1 w-full items-center">
+                        {p.ganZhi.hiddenStems.map((hs, i) => (
+                            <div key={i} className={`w-full flex items-center justify-between px-1.5 py-0.5 rounded text-[10px] ${hs.type === '主气' ? 'bg-stone-800 text-stone-50' : 'bg-stone-50 text-stone-500'}`}>
+                                <span className="font-serif font-bold scale-90">{hs.stem}</span>
+                                <span className="scale-75 opacity-80">{hs.shiShen}</span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )
+        })}
+      </div>
+      
+      {/* 内心解读区域 */}
+      <div className="bg-stone-50 p-2.5 rounded border border-stone-100 flex items-start gap-2">
+          <BrainCircuit size={14} className="text-indigo-500 mt-0.5 shrink-0" />
+          <div className="text-xs text-stone-600 leading-relaxed">
+              <span className="font-bold text-stone-800">内心真我 (日支): </span>
+              {mainQi ? (
+                  <span>
+                      你内心深处隐藏着 <b>{mainQi.shiShen}</b> 的特质。
+                      {mainQi.shiShen === '比肩' && '这代表你自尊心强，内心坚定，不愿随波逐流。'}
+                      {mainQi.shiShen === '劫财' && '这代表你内心热情冲动，讲义气，但也容易固执。'}
+                      {mainQi.shiShen === '食神' && '这代表你内心温和浪漫，向往自由，不喜欢被约束。'}
+                      {mainQi.shiShen === '伤官' && '这代表你内心傲气，才思敏捷，不喜传统束缚。'}
+                      {mainQi.shiShen === '偏财' && '这代表你慷慨豪爽，善于交际，对金钱有掌控欲。'}
+                      {mainQi.shiShen === '正财' && '这代表你踏实稳重，重视家庭，做事按部就班。'}
+                      {mainQi.shiShen === '七杀' && '这代表你内心危机感强，有野心，对自己要求严格。'}
+                      {mainQi.shiShen === '正官' && '这代表你正直自律，重视名誉，内心有道德底线。'}
+                      {mainQi.shiShen === '偏印' && '这代表你内心孤独敏感，直觉强，喜钻研冷门事物。'}
+                      {mainQi.shiShen === '正印' && '这代表你心地善良，依赖心较重，喜欢被照顾。'}
+                  </span>
+              ) : '格局平和。'}
+          </div>
+      </div>
+    </div>
+  );
+};
+// 🎨 [修改] 增强版局势判断 (带评分标准说明 + 强弱策略解读)
 const BalanceCard: React.FC<{ balance: BalanceAnalysis; dm: string }> = ({ balance, dm }) => {
   const { dayMasterStrength, yongShen, xiShen, jiShen, method, advice } = balance;
-  const scorePercent = Math.min(100, Math.max(0, (dayMasterStrength.score / 10) * 100));
+  const scorePercent = Math.min(95, Math.max(5, (dayMasterStrength.score / 100) * 100)); 
+  
+  // 🔥 核心新增：基于分数的标准断语
+  const getStrategy = (level: string) => {
+      if (level === '身强') {
+          return {
+              character: '性格主观，抗压能力强，但也容易固执己见，刚愎自用。',
+              action: '✅ 宜：发挥才华(食伤)、自我约束(官杀)。 ❌ 忌：盲目自信、固步自封。'
+          };
+      } else if (level === '身弱') {
+          return {
+              character: '性格随和，善于配合，包容心强，但也容易缺乏魄力，依赖心重。',
+              action: '✅ 宜：学习充电(印枭)、寻求合作(比劫)。 ❌ 忌：孤军奋战、逞强冒进。'
+          };
+      } else {
+          return {
+              character: '性格中庸平和，不偏不倚，处事圆融。',
+              action: '✅ 宜：根据流年运势灵活调整。'
+          };
+      }
+  };
+
+  const strategy = getStrategy(dayMasterStrength.level);
+
   return (
     <div className="bg-white border border-stone-300 rounded-lg overflow-hidden shadow-sm font-serif">
       <div className="bg-stone-50 border-b border-stone-200 px-3 py-2 flex items-center justify-between">
@@ -147,56 +293,162 @@ const BalanceCard: React.FC<{ balance: BalanceAnalysis; dm: string }> = ({ balan
            <Compass size={16} className="text-amber-700" />
            <span className="font-bold text-sm text-stone-800">局势判断</span>
         </div>
-        <div className="text-[10px] bg-stone-200 text-stone-600 px-2 py-0.5 rounded-full">{method}法则</div>
+        <div className="text-[10px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-bold">{method}法则</div>
       </div>
-      <div className="p-4 space-y-4">
-        <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-                <span className="text-lg font-bold text-stone-800">日主{dm}</span>
-                <span className={`text-xs px-1.5 py-0.5 rounded border ${
-                    dayMasterStrength.level === '身强' ? 'bg-red-50 text-red-700 border-red-100' :
-                    dayMasterStrength.level === '身弱' ? 'bg-blue-50 text-blue-700 border-blue-100' :
-                    'bg-green-50 text-green-700 border-green-100'
-                }`}>{dayMasterStrength.level}</span>
+      <div className="p-4">
+        {/* 顶部状态栏 */}
+        <div className="flex items-end justify-between mb-2">
+            <div className="flex flex-col">
+                <span className="text-[10px] text-stone-400 mb-0.5">日元强弱</span>
+                <div className="flex items-baseline gap-2">
+                    <span className="text-xl font-bold text-stone-800">日主 {dm}</span>
+                    <span className={`text-xs px-2 py-0.5 rounded-md font-bold ${
+                        dayMasterStrength.level === '身强' ? 'bg-red-100 text-red-700' :
+                        dayMasterStrength.level === '身弱' ? 'bg-blue-100 text-blue-700' :
+                        'bg-green-100 text-green-700'
+                    }`}>{dayMasterStrength.level}</span>
+                </div>
             </div>
-            <span className="text-[10px] text-stone-500">{dayMasterStrength.description}</span>
+            <div className="text-right">
+                <span className="text-2xl font-bold text-stone-300">{dayMasterStrength.score.toFixed(0)}</span>
+                <span className="text-[10px] text-stone-400 ml-1">分</span>
+            </div>
         </div>
-        <div className="relative h-2 bg-stone-100 rounded-full overflow-hidden">
-             <div className="absolute inset-0 opacity-20" style={{background: 'linear-gradient(to right, #3b82f6, #22c55e, #ef4444)'}}></div>
-             <div className="absolute top-0 bottom-0 w-1 bg-stone-800 shadow-md transform -translate-x-1/2 transition-all duration-500" style={{ left: `${scorePercent}%` }}></div>
-        </div>
-        <div className="flex justify-between text-[10px] text-stone-400"><span>弱</span><span>中</span><span>强</span></div>
-        <div className="h-px bg-stone-100"></div>
-        <div className="grid grid-cols-2 gap-4">
-             <div className="space-y-2">
-                 <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-green-500"></span><span className="text-xs font-bold text-stone-700">喜用神</span></div>
-                 <div className="flex flex-wrap gap-1.5">{yongShen.map(el => (<div key={el} className="w-8 h-8 rounded-lg bg-green-50 border border-green-100 flex items-center justify-center shadow-sm"><ElementText text={el} className="font-bold text-sm" /></div>))}{xiShen.map(el => (<div key={el} className="w-8 h-8 rounded-lg bg-green-50/50 border border-green-100/50 flex items-center justify-center border-dashed"><ElementText text={el} className="font-bold text-xs opacity-80" /></div>))}</div>
+
+        {/* 仪表盘刻度条 */}
+        <div className="relative h-6 w-full mb-2 select-none">
+             <div className="absolute top-2 left-0 right-0 h-2 rounded-full bg-gradient-to-r from-blue-400 via-green-400 to-red-400 opacity-30"></div>
+             <div className="absolute top-2 left-[40%] h-2 w-0.5 bg-white z-10"></div>
+             <div className="absolute top-2 left-[60%] h-2 w-0.5 bg-white z-10"></div>
+             <div 
+                className="absolute top-0 w-1 h-6 bg-stone-800 shadow-lg z-20 transition-all duration-700 ease-out flex flex-col items-center"
+                style={{ left: `${scorePercent}%` }}
+             >
+                <div className="w-0 h-0 border-l-[3px] border-l-transparent border-r-[3px] border-r-transparent border-t-[4px] border-t-stone-800 mt-6"></div>
              </div>
-             <div className="space-y-2">
-                 <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-red-500"></span><span className="text-xs font-bold text-stone-700">忌神</span></div>
-                 <div className="flex flex-wrap gap-1.5">{jiShen.map(el => (<div key={el} className="w-8 h-8 rounded-lg bg-red-50 border border-red-100 flex items-center justify-center shadow-sm"><ElementText text={el} className="font-bold text-sm" /></div>))}</div>
+        </div>
+        
+        {/* 评分标准说明 */}
+        <div className="flex justify-between text-[9px] text-stone-400 border-b border-stone-50 pb-3 mb-3">
+            <span>&lt;40分: 偏弱 (喜印比)</span>
+            <span>40-60分: 中和 (平衡)</span>
+            <span>&gt;60分: 偏强 (喜克泄)</span>
+        </div>
+
+        {/* 🔥 新增：策略解读区 */}
+        <div className="bg-amber-50/50 rounded-lg p-3 border border-amber-100 mb-4 space-y-2">
+             <div className="flex items-start gap-2">
+                  <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded shrink-0">性格优缺</span>
+                  <span className="text-xs text-stone-700">{strategy.character}</span>
+             </div>
+             <div className="flex items-start gap-2">
+                  <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded shrink-0">行动指南</span>
+                  <span className="text-xs text-stone-700">{strategy.action}</span>
              </div>
         </div>
-        <div className="bg-stone-50 p-3 rounded-lg border border-stone-100 text-xs text-stone-600 leading-relaxed italic"><Info size={12} className="inline mr-1 -mt-0.5 text-stone-400" />{advice}</div>
+
+        {/* 喜忌神作战室 */}
+        <div className="flex gap-4">
+             <div className="flex-1 bg-green-50/50 rounded-lg p-2 border border-green-100">
+                 <div className="flex items-center gap-1.5 mb-2">
+                     <div className="w-1.5 h-1.5 rounded-full bg-green-500"></div>
+                     <span className="text-xs font-bold text-green-800">喜用 (帮手)</span>
+                 </div>
+                 <div className="flex flex-wrap gap-1.5">
+                    {yongShen.map(el => (<div key={el} className="w-7 h-7 rounded bg-white border border-green-200 flex items-center justify-center shadow-sm text-green-700 font-bold text-sm">{el}</div>))}
+                    {xiShen.map(el => (<div key={el} className="w-7 h-7 rounded bg-green-50 border border-green-200 border-dashed flex items-center justify-center text-green-600/70 text-xs">{el}</div>))}
+                 </div>
+             </div>
+             <div className="flex-1 bg-red-50/50 rounded-lg p-2 border border-red-100">
+                 <div className="flex items-center gap-1.5 mb-2">
+                     <div className="w-1.5 h-1.5 rounded-full bg-red-500"></div>
+                     <span className="text-xs font-bold text-red-800">忌神 (压力)</span>
+                 </div>
+                 <div className="flex flex-wrap gap-1.5">
+                    {jiShen.map(el => (<div key={el} className="w-7 h-7 rounded bg-white border border-red-200 flex items-center justify-center shadow-sm text-red-700 font-bold text-sm">{el}</div>))}
+                 </div>
+             </div>
+        </div>
+        
+        {/* 保留原有的详细建议 */}
+        <div className="mt-3 text-xs text-stone-600 leading-relaxed italic bg-stone-50 p-2.5 rounded border border-stone-100 flex gap-2">
+            <Info size={14} className="shrink-0 text-stone-400 mt-0.5" />
+            <span>{advice}</span>
+        </div>
       </div>
     </div>
   );
 };
-
+// 🎨 [修改] 增强版格局判定 (带事业与性格断语)
 const PatternCard: React.FC<{ pattern: PatternAnalysis }> = ({ pattern }) => {
   const { name, type, isEstablished, level, keyFactors, description } = pattern;
+
+  // 🔥 核心新增：格局对应的标准解读库
+  const getPatternGuidance = (patternName: string) => {
+    if (patternName.includes('官')) return { trait: '正直自律，重视名誉，有管理才能。', career: '公务员、行政管理、法律、大型企业。' };
+    if (patternName.includes('杀')) return { trait: '刚毅果决，有魄力，危机感强，喜挑战。', career: '军警、司法、高管、创业、外科医生。' };
+    if (patternName.includes('印') || patternName.includes('枭')) return { trait: '聪明好学，重精神世界，善于思考。', career: '学术研究、教育、艺术、咨询、宗教。' };
+    if (patternName.includes('财')) return { trait: '务实勤奋，对金钱敏感，善于交际。', career: '经商、金融、销售、财务、投资。' };
+    if (patternName.includes('食')) return { trait: '温和儒雅，才华横溢，注重生活品质。', career: '餐饮、服务、设计、演艺、自由职业。' };
+    if (patternName.includes('伤')) return { trait: '才思敏捷，傲气叛逆，不喜束缚。', career: '创意、科技、演说、律师、艺术创作。' };
+    if (patternName.includes('刃') || patternName.includes('禄')) return { trait: '意志坚定，竞争心强，讲义气。', career: '合伙生意、独立经营、技术、体力相关。' };
+    return { trait: '格局特殊，性格复杂多变。', career: '需视具体组合而定，灵活发展。' };
+  };
+
+  const guidance = getPatternGuidance(name);
+
   return (
     <div className="bg-white border border-stone-300 rounded-lg overflow-hidden shadow-sm font-serif">
       <div className="bg-stone-50 border-b border-stone-200 px-3 py-2 flex items-center justify-between">
-        <div className="flex items-center gap-2"><Crown size={16} className="text-purple-700" /><span className="font-bold text-sm text-stone-800">完整格局判定</span></div>
-        <div className="flex items-center gap-2"><span className="text-[10px] bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-bold">{type}</span><span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border ${isEstablished ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'}`}>{isEstablished ? '成格' : '破格'}</span></div>
+        <div className="flex items-center gap-2"><Crown size={16} className="text-purple-700" /><span className="font-bold text-sm text-stone-800">命格判定</span></div>
+        <div className="flex items-center gap-2">
+            <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border ${isEstablished ? 'bg-purple-100 text-purple-700 border-purple-200' : 'bg-stone-100 text-stone-500 border-stone-200'}`}>
+                {isEstablished ? '成格' : '破格'}
+            </span>
+        </div>
       </div>
-      <div className="p-4 space-y-4">
-          <div className="flex items-baseline justify-between"><h3 className="text-xl font-bold text-stone-800">{name}</h3><span className={`text-xs font-bold px-2 py-1 rounded ${level === '上等' ? 'bg-yellow-100 text-yellow-800' : level === '中等' ? 'bg-stone-100 text-stone-600' : level === '下等' ? 'bg-stone-100 text-stone-400' : 'bg-red-50 text-red-500'}`}>层次：{level}</span></div>
-          <p className="text-xs text-stone-600 leading-relaxed bg-stone-50 p-3 rounded-lg border border-stone-100 italic">{description}</p>
-          <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1"><span className="text-[10px] font-bold text-stone-400 uppercase">成格有利因素</span><div className="flex flex-wrap gap-1">{keyFactors.beneficial.length > 0 ? keyFactors.beneficial.map((f, i) => (<span key={i} className="text-[10px] bg-green-50 text-green-700 border border-green-100 px-1.5 py-0.5 rounded">{f}</span>)) : <span className="text-[10px] text-stone-300">-</span>}</div></div>
-              <div className="space-y-1"><span className="text-[10px] font-bold text-stone-400 uppercase">破格/不利因素</span><div className="flex flex-wrap gap-1">{keyFactors.destructive.length > 0 ? keyFactors.destructive.map((f, i) => (<span key={i} className="text-[10px] bg-red-50 text-red-700 border-red-100 px-1.5 py-0.5 rounded">{f}</span>)) : <span className="text-[10px] text-stone-300">-</span>}</div></div>
+      <div className="p-4">
+          <div className="flex items-center justify-between mb-3">
+              <h3 className="text-2xl font-bold text-stone-800">{name}</h3>
+              <div className="text-right">
+                   <span className="block text-[10px] text-stone-400">格局层次</span>
+                   <span className={`text-sm font-bold ${level === '上等' ? 'text-amber-600' : level === '中等' ? 'text-blue-600' : 'text-stone-500'}`}>{level}</span>
+              </div>
+          </div>
+          
+          <div className="relative pl-3 border-l-2 border-purple-200 py-1 mb-4">
+              <p className="text-xs text-stone-600 leading-relaxed">{description}</p>
+          </div>
+
+          {/* 🔥 新增：标准解读区 */}
+          <div className="bg-purple-50/50 rounded-lg p-3 border border-purple-100 mb-4 space-y-2">
+              <div className="flex items-start gap-2">
+                  <span className="text-[10px] font-bold text-purple-700 bg-purple-100 px-1.5 py-0.5 rounded shrink-0">性格特质</span>
+                  <span className="text-xs text-stone-700">{guidance.trait}</span>
+              </div>
+              <div className="flex items-start gap-2">
+                  <span className="text-[10px] font-bold text-purple-700 bg-purple-100 px-1.5 py-0.5 rounded shrink-0">事业方向</span>
+                  <span className="text-xs text-stone-700">{guidance.career}</span>
+              </div>
+          </div>
+
+          <div className="flex gap-2">
+              {keyFactors.beneficial.length > 0 && (
+                  <div className="flex-1 bg-green-50 rounded px-2 py-1.5">
+                      <span className="text-[9px] text-green-800/60 block mb-1">有利因素 (成格条件)</span>
+                      <div className="flex flex-wrap gap-1">
+                        {keyFactors.beneficial.map((f,i) => <span key={i} className="text-[10px] font-bold text-green-700 bg-white px-1 rounded border border-green-100">{f}</span>)}
+                      </div>
+                  </div>
+              )}
+              {keyFactors.destructive.length > 0 && (
+                  <div className="flex-1 bg-red-50 rounded px-2 py-1.5">
+                      <span className="text-[9px] text-red-800/60 block mb-1">破坏因素 (破格原因)</span>
+                      <div className="flex flex-wrap gap-1">
+                        {keyFactors.destructive.map((f,i) => <span key={i} className="text-[10px] font-bold text-red-700 bg-white px-1 rounded border border-red-100">{f}</span>)}
+                      </div>
+                  </div>
+              )}
           </div>
       </div>
     </div>
@@ -228,6 +480,7 @@ const InfoModal: React.FC<{ data: ModalData | null; chart?: BaziChart | null; on
   const isDayMaster = pillarName === '日柱'; const branchBasic = CHAR_MEANINGS[branch];
   const advancedReadings: InterpretationResult[] = React.useMemo(() => { if (!chart || !data) return []; return getAdvancedInterpretation(chart, data); }, [chart, data]);
 
+  // 🔥 修复：生肖显示
   const ZODIAC_MAP: Record<string, string> = {
     '子': '鼠', '丑': '牛', '寅': '虎', '卯': '兔',
     '辰': '龙', '巳': '蛇', '午': '马', '未': '羊',
@@ -317,11 +570,6 @@ const HomeView: React.FC<{
   
   // 弹窗状态
   const [showArchiveList, setShowArchiveList] = useState(false);
-
-  // 如果初始是空字符串以便输入，可以用 useEffect 初始化，或者直接保留默认值
-  // 这里为了体验顺滑，可以像上一步那样设为空，或者保留默认值配合 onFocus 清空
-  // 为了稳妥，这里先保留默认值，如果您之前改了为空，可以继续保持为空
-  // const [birthDate, setBirthDate] = useState(''); 
 
   const handleProvinceChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
       setProvince(e.target.value);
@@ -447,7 +695,7 @@ const HomeView: React.FC<{
                   value={birthDate} 
                   onChange={handleDateChange} 
                   onBlur={handleDateBlur} 
-                  placeholder="如: 19880109" 
+                  placeholder="如: 19900101" 
                   maxLength={10} 
                   className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-3 outline-none focus:ring-2 focus:ring-stone-900/10 focus:border-stone-400 font-sans text-sm tracking-widest"
                   required
@@ -459,7 +707,6 @@ const HomeView: React.FC<{
                   </div>
                 )}
               </div>
-           
             </div>
             <div>
               <label className="block text-xs font-bold text-stone-400 uppercase tracking-wider mb-2">出生时间</label>
@@ -585,6 +832,7 @@ const HomeView: React.FC<{
     </div>
   );
 };
+
 const ChartView: React.FC<{ 
   profile: UserProfile; 
   chart: BaziChart; 
@@ -604,6 +852,8 @@ const ChartView: React.FC<{
   const [showApiKey, setShowApiKey] = useState(false);
 
   useEffect(() => {
+    // If there's an existing report in the profile, we don't have its structured format,
+    // so we'll just show the text if available.
   }, [profile.id]);
 
   useEffect(() => {
@@ -643,6 +893,7 @@ const ChartView: React.FC<{
     localStorage.setItem('ai_api_key', val);
   };
 
+  // Helper to detect platform
   const detectedPlatform = useMemo(() => {
     if (!apiKey) return null;
     if (apiKey.includes('ali') || apiKey.length > 45) return { name: '阿里云百炼', color: 'text-orange-600 bg-orange-50' };
@@ -670,19 +921,19 @@ const ChartView: React.FC<{
     { id: ChartSubTab.DETAIL, label: '大运流年' },
     { id: ChartSubTab.ANALYSIS, label: '大师解读' }
   ];
-
+ // --- Grid Renderers ---
   const renderBasicGrid = () => {
     const dayGan = chart.pillars.day.ganZhi.gan;
-    const dayZhi = chart.pillars.day.ganZhi.zhi;
-    const dayGanIdx = getStemIndex(dayGan);
-    const dayZhiIdx = EARTHLY_BRANCHES.indexOf(dayZhi);
-    const kwIndex = (dayZhiIdx - dayGanIdx + 12) % 12;
-    const kwMap: Record<number, string[]> = { 
-      0: ['戌', '亥'], 10: ['申', '酉'], 8: ['午', '未'], 
-      6: ['辰', '巳'], 4: ['寅', '卯'], 2: ['子', '丑'] 
-    };
-    const dayKongWangBranches = kwMap[kwIndex] || [];
-    const isKongWang = (zhi: string) => dayKongWangBranches.includes(zhi);
+  const dayZhi = chart.pillars.day.ganZhi.zhi;
+  const dayGanIdx = getStemIndex(dayGan);
+  const dayZhiIdx = EARTHLY_BRANCHES.indexOf(dayZhi);
+  const kwIndex = (dayZhiIdx - dayGanIdx + 12) % 12;
+  const kwMap: Record<number, string[]> = { 
+    0: ['戌', '亥'], 10: ['申', '酉'], 8: ['午', '未'], 
+    6: ['辰', '巳'], 4: ['寅', '卯'], 2: ['子', '丑'] 
+  };
+  const dayKongWangBranches = kwMap[kwIndex] || [];
+  const isKongWang = (zhi: string) => dayKongWangBranches.includes(zhi);
     const pillars = [
       { key: 'year', label: '年柱', data: chart.pillars.year },
       { key: 'month', label: '月柱', data: chart.pillars.month },
@@ -690,125 +941,89 @@ const ChartView: React.FC<{
       { key: 'hour', label: '时柱', data: chart.pillars.hour },
     ];
 
-    const rows = [
-      { label: '主星', render: (p: Pillar) => p.name === '日柱' ? '日元' : (p.ganZhi.shiShenGan || '-') },
-      { label: '天干', render: (p: Pillar) => (<div onClick={() => openModal(p.name, p.ganZhi, p.shenSha, p.kongWang)} className="cursor-pointer active:scale-95 transition-transform"><ElementText text={p.ganZhi.gan} className="text-2xl font-bold font-serif" /></div>) },
-      { label: '地支', render: (p: Pillar) => (<div onClick={() => openModal(p.name, p.ganZhi, p.shenSha, p.kongWang)} className="cursor-pointer active:scale-95 transition-transform"><ElementText text={p.ganZhi.zhi} className="text-2xl font-bold font-serif" /></div>) },
-      { label: '藏干', render: (p: Pillar) => (<div className="flex flex-col text-[10px] space-y-0.5 leading-none items-center">{p.ganZhi.hiddenStems.map((h, i) => (<span key={i} className={h.type === '主气' ? 'font-bold text-stone-800' : 'text-stone-500 scale-90'}>{h.stem}{FIVE_ELEMENTS[h.stem]}</span>))}</div>) },
-      { label: '副星', render: (p: Pillar) => (<div className="flex flex-col text-[10px] space-y-0.5 leading-none text-stone-500 items-center">{p.ganZhi.hiddenStems.map((h, i) => <span key={i} className="whitespace-nowrap scale-90">{h.shiShen}</span>)}</div>) },
-      { label: '纳音', render: (p: Pillar) => <span className="text-[10px] scale-90 whitespace-nowrap text-stone-500">{p.ganZhi.naYin}</span> },
-      { label: '星运', render: (p: Pillar) => <span className="text-xs text-stone-600">{p.ganZhi.lifeStage}</span> },
-      { label: '自坐', render: (p: Pillar) => <span className="text-xs text-stone-500">{p.ganZhi.selfLifeStage}</span> },
-      { 
-        label: '空亡', 
-        render: (p: Pillar) => 
-          isKongWang(p.ganZhi.zhi) ? 
-            <span className="text-[10px] bg-stone-200 px-1 rounded text-stone-600">空</span> : 
-            <span className="text-stone-200">—</span> 
-      },
-      { 
-        label: '神煞',
-        render: (p: Pillar) => (
-          <div className="flex flex-wrap justify-center gap-1 w-full px-1 py-0.5 min-h-[24px]">
-            {p.shenSha.length === 0 ? (
-              <span className="text-[9px] text-stone-400">—</span>
-            ) : (
-              p.shenSha.map((s, i) => {
-                const isAuspicious = ['天乙', '太极', '文昌', '文星', '福星', '天德', '月德', '将星', '华盖', '金舆', '禄'].some(k => s.includes(k));
-                const isInauspicious = ['劫煞', '灾煞', '天煞', '地煞', '孤辰', '寡宿', '阴差阳错', '空亡'].some(k => s.includes(k));
-                const isPeachBlossom = ['桃花', '咸池', '红艳'].some(k => s.includes(k));
+  const rows = [
+  { label: '主星', render: (p: Pillar) => p.name === '日柱' ? '日元' : (p.ganZhi.shiShenGan || '-') },
+  { label: '天干', render: (p: Pillar) => (<div onClick={() => openModal(p.name, p.ganZhi, p.shenSha, p.kongWang)} className="cursor-pointer active:scale-95 transition-transform"><ElementText text={p.ganZhi.gan} className="text-2xl font-bold font-serif" /></div>) },
+  { label: '地支', render: (p: Pillar) => (<div onClick={() => openModal(p.name, p.ganZhi, p.shenSha, p.kongWang)} className="cursor-pointer active:scale-95 transition-transform"><ElementText text={p.ganZhi.zhi} className="text-2xl font-bold font-serif" /></div>) },
+  { label: '藏干', render: (p: Pillar) => (<div className="flex flex-col text-[10px] space-y-0.5 leading-none items-center">{p.ganZhi.hiddenStems.map((h, i) => (<span key={i} className={h.type === '主气' ? 'font-bold text-stone-800' : 'text-stone-500 scale-90'}>{h.stem}{FIVE_ELEMENTS[h.stem]}</span>))}</div>) },
+  { label: '副星', render: (p: Pillar) => (<div className="flex flex-col text-[10px] space-y-0.5 leading-none text-stone-500 items-center">{p.ganZhi.hiddenStems.map((h, i) => <span key={i} className="whitespace-nowrap scale-90">{h.shiShen}</span>)}</div>) },
+  { label: '纳音', render: (p: Pillar) => <span className="text-[10px] scale-90 whitespace-nowrap text-stone-500">{p.ganZhi.naYin}</span> },
+  { label: '星运', render: (p: Pillar) => <span className="text-xs text-stone-600">{p.ganZhi.lifeStage}</span> },
+  { label: '自坐', render: (p: Pillar) => <span className="text-xs text-stone-500">{p.ganZhi.selfLifeStage}</span> },
+  { 
+    label: '空亡', 
+    render: (p: Pillar) => 
+      isKongWang(p.ganZhi.zhi) ? 
+        <span className="text-[10px] bg-stone-200 px-1 rounded text-stone-600">空</span> : 
+        <span className="text-stone-200">—</span> 
+  }, // 👈👈👈 这里加逗号！
+  { 
+    label: '神煞',
+    render: (p: Pillar) => (
+      <div className="flex flex-wrap justify-center gap-1 w-full px-1 py-0.5 min-h-[24px]">
+        {p.shenSha.length === 0 ? (
+          <span className="text-[9px] text-stone-400">—</span>
+        ) : (
+          p.shenSha.map((s, i) => {
+            const isAuspicious = ['天乙', '太极', '文昌', '文星', '福星', '天德', '月德', '将星', '华盖', '金舆', '禄'].some(k => s.includes(k));
+            const isInauspicious = ['劫煞', '灾煞', '天煞', '地煞', '孤辰', '寡宿', '阴差阳错', '空亡'].some(k => s.includes(k));
+            const isPeachBlossom = ['桃花', '咸池', '红艳'].some(k => s.includes(k));
 
-                let bgColor = 'bg-stone-100';
-                let textColor = 'text-stone-600';
-                let borderColor = 'border-stone-200';
+            let bgColor = 'bg-stone-100';
+            let textColor = 'text-stone-600';
+            let borderColor = 'border-stone-200';
 
-                if (isAuspicious) {
-                  bgColor = 'bg-emerald-50';
-                  textColor = 'text-emerald-700';
-                  borderColor = 'border-emerald-200';
-                } else if (isInauspicious) {
-                  bgColor = 'bg-rose-50';
-                  textColor = 'text-rose-700';
-                  borderColor = 'border-rose-200';
-                } else if (isPeachBlossom) {
-                  bgColor = 'bg-amber-50';
-                  textColor = 'text-amber-700';
-                  borderColor = 'border-amber-200';
-                }
+            if (isAuspicious) {
+              bgColor = 'bg-emerald-50';
+              textColor = 'text-emerald-700';
+              borderColor = 'border-emerald-200';
+            } else if (isInauspicious) {
+              bgColor = 'bg-rose-50';
+              textColor = 'text-rose-700';
+              borderColor = 'border-rose-200';
+            } else if (isPeachBlossom) {
+              bgColor = 'bg-amber-50';
+              textColor = 'text-amber-700';
+              borderColor = 'border-amber-200';
+            }
 
-                return (
-                  <span
-                    key={i}
-                    className={`text-[8px] px-1 py-0.5 rounded border whitespace-nowrap ${bgColor} ${textColor} ${borderColor} leading-none`}
-                    title={s}
-                  >
-                    {s}
-                  </span>
-                );
-              })
-            )}
-          </div>
-        )
-      }   
-    ];
-
+            return (
+              <span
+                key={i}
+                className={`text-[8px] px-1 py-0.5 rounded border whitespace-nowrap ${bgColor} ${textColor} ${borderColor} leading-none`}
+                title={s}
+              >
+                {s}
+              </span>
+            );
+          })
+        )}
+      </div>
+    )
+  }   
+];
     return (
       <div className="space-y-4">
+         {/* 1. 命盘信息卡片 (保持不变) */}
          <ChartInfoCard chart={chart} />
+         
+         {/* 2. 四柱列表 (保持不变) */}
          <div className="bg-white border border-stone-300 rounded-lg overflow-hidden shadow-sm">
             <div className="grid grid-cols-5 divide-x divide-stone-200 bg-stone-100 border-b border-stone-300 text-center text-sm font-bold text-stone-700"><div className="py-2 bg-stone-200/50"></div>{pillars.map(p => <div key={p.key} className="py-2">{p.label}</div>)}</div>
             {rows.map((row, idx) => (<div key={idx} className={`grid grid-cols-5 divide-x divide-stone-200 border-b border-stone-100 ${idx % 2 === 0 ? 'bg-white' : 'bg-stone-50/50'}`}><div className="flex items-center justify-center font-bold text-xs text-stone-500 bg-stone-100/30 p-2">{row.label}</div>{pillars.map(p => (<div key={p.key} className="flex flex-col items-center justify-center p-1.5 text-center min-h-[2.5rem] relative">{row.render(p.data)}</div>))}</div>))}
          </div>
 
-         {/* 🔥 移入：五行强弱分布 */}
-         <div className="bg-white rounded-xl border border-stone-200 p-5 shadow-sm">
-            <h4 className="font-bold text-stone-800 mb-4 flex items-center gap-2"><BarChart3 size={16} /> 五行强弱分布</h4>
-            <div className="space-y-3">
-                {['木', '火', '土', '金', '水'].map(el => {
-                    const count = chart.wuxingCounts[el] || 0;
-                    const max = Math.max(...Object.values(chart.wuxingCounts));
-                    const percent = max > 0 ? (count / max) * 100 : 0;
-                    const colors: Record<string, string> = {'木':'bg-green-500','火':'bg-red-500','土':'bg-amber-600','金':'bg-orange-400','水':'bg-blue-500'};
-                    return (
-                        <div key={el} className="flex items-center gap-3">
-                            <div className={`w-8 h-8 rounded-lg ${colors[el].replace('500','100').replace('600','100').replace('400','100')} flex items-center justify-center font-bold text-sm ${colors[el].replace('bg-','text-')}`}>
-                                {el}
-                            </div>
-                            <div className="flex-1 h-3 bg-stone-100 rounded-full overflow-hidden">
-                                <div className={`h-full ${colors[el]} transition-all duration-500`} style={{width: `${percent}%`}}></div>
-                            </div>
-                            <span className="font-bold text-stone-700 w-6 text-right">{count}</span>
-                        </div>
-                    )
-                })}
-            </div>
-         </div>
-
-         {/* 🔥 移入：藏干深浅 */}
-         <div className="bg-white rounded-xl border border-stone-200 p-4 shadow-sm">
-            <h4 className="font-bold text-stone-800 mb-3 flex items-center gap-2"><Search size={16} /> 藏干深浅</h4>
-            <div className="space-y-3">
-                {['year', 'month', 'day', 'hour'].map(key => {
-                    const p = chart.pillars[key as keyof typeof chart.pillars];
-                    return (
-                        <div key={key} className="flex items-start gap-3 border-b border-stone-50 last:border-0 pb-2 last:pb-0">
-                            <div className="w-8 text-[10px] text-stone-400 pt-1 uppercase">{p.name}</div>
-                            <div className="flex-1 flex flex-wrap gap-2">
-                                {p.ganZhi.hiddenStems.map((hs, i) => (
-                                    <div key={i} className={`text-xs px-2 py-1 rounded border flex items-center gap-1 ${hs.type === '主气' ? 'bg-stone-800 text-white border-stone-800' : 'bg-stone-50 text-stone-600 border-stone-200'}`}>
-                                        <span className="font-serif font-bold">{hs.stem}</span>
-                                        <span className="opacity-70 scale-90 text-[10px]">({hs.shiShen})</span>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )
-                })}
-            </div>
-         </div>
-
+         {/* 🔥 3. 命格判定 (优先展示定性) */}
          <PatternCard pattern={chart.pattern} />
+
+         {/* 🔥 4. 局势判断 (带刻度条的增强版) */}
          <BalanceCard balance={chart.balance} dm={chart.dayMaster} />
+
+         {/* 🔥 5. 紧凑型 - 五行与藏干并排 (或上下排，视屏幕宽度而定，这里用Grid布局节省空间) */}
+         <div className="grid grid-cols-1 gap-4">
+             <FiveElementsCompact chart={chart} />
+             <HiddenStemsCompact chart={chart} />
+         </div>
       </div>
     );
   };
@@ -817,17 +1032,21 @@ const ChartView: React.FC<{
   const renderDetailGrid = () => {
     const currentLuck = chart.luckPillars[selectedLuckIdx];
     const annualGanZhi = getGanZhiForYear(analysisYear, chart.dayMaster);
+    
     const birthYear = parseInt(profile.birthDate.split('-')[0]);
-    const ageInYear = analysisYear - birthYear + 1;
+    const ageInYear = analysisYear - birthYear + 1; // Nominal Age (虚岁)
+    
     const startDaYunAge = chart.luckPillars[0]?.startAge || 999;
     const isXiaoYun = ageInYear < startDaYunAge;
+    
     const xiaoYunData = chart.xiaoYun.find(x => x.age === ageInYear);
 
-    const columns = [
-        { title: '时柱', ganZhi: chart.pillars.hour.ganZhi, data: chart.pillars.hour },
-        { title: '日柱', ganZhi: chart.pillars.day.ganZhi, data: chart.pillars.day },
-        { title: '月柱', ganZhi: chart.pillars.month.ganZhi, data: chart.pillars.month },
+// 🔥 排序修正：年-月-日-时-运-流
+const columns = [
         { title: '年柱', ganZhi: chart.pillars.year.ganZhi, data: chart.pillars.year },
+        { title: '月柱', ganZhi: chart.pillars.month.ganZhi, data: chart.pillars.month },
+        { title: '日柱', ganZhi: chart.pillars.day.ganZhi, data: chart.pillars.day },
+        { title: '时柱', ganZhi: chart.pillars.hour.ganZhi, data: chart.pillars.hour },
         { title: isXiaoYun ? '小运' : '大运', isDynamic: true, ganZhi: isXiaoYun ? xiaoYunData?.ganZhi : currentLuck?.ganZhi, age: isXiaoYun ? xiaoYunData?.age : currentLuck?.startAge, year: isXiaoYun ? xiaoYunData?.year : currentLuck?.startYear },
         { title: '流年', isDynamic: true, ganZhi: annualGanZhi, age: ageInYear, year: analysisYear }
     ];
@@ -851,28 +1070,47 @@ const ChartView: React.FC<{
                      <div className="bg-stone-100 flex items-center justify-center text-[10px] text-stone-500 font-bold">藏干</div>
                      {columns.map((col, i) => <div key={i} className="h-16 bg-white">{col.ganZhi && (<div className="flex flex-col items-center justify-center h-full w-full py-1 gap-0.5 px-0.5">{col.ganZhi.hiddenStems.map((h: any, j: number) => (<div key={j} className="flex items-center justify-between w-full max-w-[3.5rem] gap-1 leading-none"><span className="text-[10px] font-bold shrink-0"><ElementText text={h.stem} /></span><span className="text-[10px] text-stone-500 whitespace-nowrap scale-90">{h.shiShen}</span></div>))}</div>)}</div>)}
 
-                     <div className="bg-stone-100 flex items-center justify-center text-[10px] text-stone-500 font-bold">神煞</div>
-                     {columns.map((col, i) => {
-                       let shenShaList: string[] = [];
-                       if (col.data && col.data.shenSha) {
-                         shenShaList = col.data.shenSha;
-                       } else if (col.ganZhi) {
-                         shenShaList = getShenShaForDynamicPillar(col.ganZhi.gan, col.ganZhi.zhi, chart);
-                       }
-                       return (
-                         <div key={i} className="h-16 bg-white">
-                           {shenShaList.length > 0 ? (
-                             <div className="flex flex-wrap gap-1 justify-center items-center h-full px-1 overflow-y-auto no-scrollbar content-center">
-                               {shenShaList.slice(0, 3).map((ss: string, idx: number) => (
-                                 <span key={idx} className={`text-[9px] px-1 rounded border whitespace-nowrap ${ss.includes('贵人')||ss.includes('禄')?'bg-amber-50 text-amber-700 border-amber-100':ss.includes('桃花')||ss.includes('红艳')?'bg-rose-50 text-rose-700 border-rose-100':'bg-stone-100 text-stone-600 border-stone-200'}`}>{ss}</span>
-                               ))}
-                               {shenShaList.length > 3 && <span className="text-[8px] text-stone-400">+{shenShaList.length - 3}</span>}
-                             </div>
-                           ) : <div className="text-center text-[10px] text-stone-300 h-full flex items-center justify-center">—</div>}
-                         </div>
-                       );
-                     })}
-                     
+ {/* === 神煞 行 === */}
+<div className="bg-stone-100 flex items-center justify-center text-[10px] text-stone-500 font-bold">神煞</div>
+{columns.map((col, i) => {
+  // 🔥 核心修改：动态计算神煞
+  let shenShaList: string[] = [];
+  
+  if (col.data && col.data.shenSha) {
+    // 1. 如果是四柱（有 data 属性），直接使用已有的神煞
+    shenShaList = col.data.shenSha;
+  } else if (col.ganZhi) {
+    // 2. 如果是大运或流年（没有 data 属性，但有 ganZhi），实时计算
+    shenShaList = getShenShaForDynamicPillar(col.ganZhi.gan, col.ganZhi.zhi, chart);
+  }
+
+  return (
+    <div key={i} className="h-16 bg-white">
+      {shenShaList.length > 0 ? (
+        <div className="flex flex-wrap gap-1 justify-center items-center h-full px-1 overflow-y-auto no-scrollbar content-center">
+          {shenShaList.slice(0, 3).map((ss: string, idx: number) => (
+            <span
+              key={idx}
+              className={`text-[9px] px-1 rounded border whitespace-nowrap ${
+                ss.includes('贵人') || ss.includes('禄') ? 'bg-amber-50 text-amber-700 border-amber-100' :
+                ss.includes('桃花') || ss.includes('红艳') ? 'bg-rose-50 text-rose-700 border-rose-100' :
+                'bg-stone-100 text-stone-600 border-stone-200'
+              }`}
+            >
+              {ss}
+            </span>
+          ))}
+          {/* 如果超过3个神煞，显示+号 */}
+          {shenShaList.length > 3 && <span className="text-[8px] text-stone-400">+{shenShaList.length - 3}</span>}
+        </div>
+      ) : (
+        <div className="text-center text-[10px] text-stone-300 h-full flex items-center justify-center">
+          —
+        </div>
+      )}
+    </div>
+  );
+})}                    
                      <div className="bg-stone-100 flex items-center justify-center text-[10px] text-stone-500">纳音</div>
                      {columns.map((col, i) => <div key={i} className="text-center py-1 text-[10px] text-stone-600 scale-90 whitespace-nowrap bg-stone-50/30 flex items-center justify-center">{col.ganZhi?.naYin}</div>)}
 
@@ -881,20 +1119,29 @@ const ChartView: React.FC<{
                 </div>
             </div>
 
-            <div className="flex overflow-x-auto divide-x divide-stone-200 no-scrollbar">
-              {chart.luckPillars.map(l => {
-                const isActive = !isXiaoYun && selectedLuckIdx === l.index - 1;
-                return (
-                  <div key={l.index} onClick={() => { setSelectedLuckIdx(l.index - 1); setAnalysisYear(l.startYear); }} className={`flex-1 min-w-[3rem] py-2 cursor-pointer transition-colors flex flex-col items-center ${isActive ? 'bg-amber-100 ring-inset ring-2 ring-amber-400' : 'bg-white hover:bg-stone-50'}`}>
-                    <span className="text-[9px] text-stone-400 mb-1">{l.startAge}岁</span>
-                    <div className="font-serif font-bold text-sm"><ElementText text={l.ganZhi.gan} /></div>
-                    <div className="font-serif font-bold text-sm"><ElementText text={l.ganZhi.zhi} /></div>
-                    <span className="text-[9px] text-stone-400 mt-1">{l.startYear}</span>
-                  </div>
-                );
-              })}
-            </div>
 
+<div className="flex overflow-x-auto divide-x divide-stone-200 no-scrollbar">
+  {chart.luckPillars.map(l => {
+    const isActive = !isXiaoYun && selectedLuckIdx === l.index - 1;
+    return (
+      <div
+        key={l.index}
+        onClick={() => {
+          setSelectedLuckIdx(l.index - 1);
+          setAnalysisYear(l.startYear);
+        }}
+        className={`flex-1 min-w-[3rem] py-2 cursor-pointer transition-colors flex flex-col items-center ${
+          isActive ? 'bg-amber-100 ring-inset ring-2 ring-amber-400' : 'bg-white hover:bg-stone-50'
+        }`}
+      >
+        <span className="text-[9px] text-stone-400 mb-1">{l.startAge}岁</span>
+        <div className="font-serif font-bold text-sm"><ElementText text={l.ganZhi.gan} /></div>
+        <div className="font-serif font-bold text-sm"><ElementText text={l.ganZhi.zhi} /></div>
+        <span className="text-[9px] text-stone-400 mt-1">{l.startYear}</span>
+      </div>
+    );
+  })}
+</div>
             <div className="bg-white border border-stone-300 rounded-lg overflow-hidden shadow-sm p-2">
                 <div className="text-xs font-bold text-stone-500 mb-2 px-1">流年选择 ({analysisYear})</div>
                 <div className="grid grid-cols-5 gap-1">
@@ -904,16 +1151,29 @@ const ChartView: React.FC<{
                         const y = (lp.startYear as number) + i;
                         const gz = getGanZhiForYear(y, chart.dayMaster);
                         const isSelected = analysisYear === y;
+                        
                         const fortune = calculateAnnualFortune(chart, y);
-                        let borderColor = 'border-stone-200'; let bgColor = 'bg-stone-50';
-                        if (isSelected) { borderColor = 'border-amber-400'; bgColor = 'bg-amber-50'; }
-                        else if (fortune.rating === '吉') { borderColor = 'border-green-200'; bgColor = 'bg-green-50/50'; }
-                        else if (fortune.rating === '凶') { borderColor = 'border-red-200'; bgColor = 'bg-red-50/50'; }
+                        let borderColor = 'border-stone-200';
+                        let bgColor = 'bg-stone-50';
+                        
+                        if (isSelected) {
+                            borderColor = 'border-amber-400';
+                            bgColor = 'bg-amber-50';
+                        } else if (fortune.rating === '吉') {
+                            borderColor = 'border-green-200';
+                            bgColor = 'bg-green-50/50';
+                        } else if (fortune.rating === '凶') {
+                            borderColor = 'border-red-200';
+                            bgColor = 'bg-red-50/50';
+                        }
+
                         return (
                             <div key={y} onClick={() => setAnalysisYear(y)} className={`py-1 rounded border text-center cursor-pointer transition-colors relative ${bgColor} ${borderColor} hover:border-stone-300`}>
                                 <div className="text-[9px] text-stone-400">{y}</div>
                                 <div className="font-serif font-bold text-sm"><ElementText text={gz.gan} /><ElementText text={gz.zhi} /></div>
-                                {fortune.rating !== '平' && (<div className={`absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full ${fortune.rating === '吉' ? 'bg-green-500' : 'bg-red-500'}`}></div>)}
+                                {fortune.rating !== '平' && (
+                                    <div className={`absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full ${fortune.rating === '吉' ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                                )}
                             </div>
                         );
                     })}
