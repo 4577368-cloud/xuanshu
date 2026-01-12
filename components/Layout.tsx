@@ -1,6 +1,25 @@
 import React from 'react';
+import { Compass, ScrollText, User, ChevronLeft, RotateCcw } from 'lucide-react';
 import { AppTab } from '../types';
-import { Compass, FileText, Home, Sparkles } from 'lucide-react';
+
+interface HeaderProps {
+  title: string;
+  rightAction?: React.ReactNode;
+}
+
+export const Header: React.FC<HeaderProps> = ({ title, rightAction }) => {
+  return (
+    <header className="bg-white/80 backdrop-blur-md border-b border-stone-200 h-14 flex items-center justify-between px-4 sticky top-0 z-50">
+      <div className="w-10">
+        {/* Placeholder for left action if needed */}
+      </div>
+      <h1 className="font-serif font-bold text-lg text-stone-800 tracking-wide">{title}</h1>
+      <div className="w-10 flex justify-end">
+        {rightAction}
+      </div>
+    </header>
+  );
+};
 
 interface BottomNavProps {
   currentTab: AppTab;
@@ -9,28 +28,35 @@ interface BottomNavProps {
 
 export const BottomNav: React.FC<BottomNavProps> = ({ currentTab, onTabChange }) => {
   const tabs = [
-    { id: AppTab.HOME, label: '首页', icon: Home },
-    { id: AppTab.CHART, label: '命盘', icon: Compass },
-    { id: AppTab.TIPS, label: '知识', icon: Sparkles },
-    { id: AppTab.ARCHIVE, label: '档案', icon: FileText },
+    { id: AppTab.HOME, label: '首页', icon: Compass },
+    { id: AppTab.CHART, label: '排盘', icon: ScrollText },
+    // 🔥 已移除“知识/提示”板块
+    { id: AppTab.ARCHIVE, label: '档案', icon: User },
   ];
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 bg-stone-50 border-t border-stone-200 pb-safe pt-2 px-6 shadow-lg z-50">
-      <div className="flex justify-between items-center max-w-md mx-auto h-16">
+    <div className="bg-white border-t border-stone-200 pb-safe pt-2 px-6 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.02)] shrink-0 z-50">
+      <div className="flex justify-between items-end pb-2">
         {tabs.map((tab) => {
-          const Icon = tab.icon;
           const isActive = currentTab === tab.id;
           return (
             <button
               key={tab.id}
               onClick={() => onTabChange(tab.id)}
-              className={`flex flex-col items-center justify-center w-16 transition-colors duration-200 ${
-                isActive ? 'text-amber-800' : 'text-stone-400'
+              className={`flex flex-col items-center gap-1 min-w-[4rem] transition-all duration-300 ${
+                isActive ? 'text-stone-900 -translate-y-1' : 'text-stone-400 hover:text-stone-600'
               }`}
             >
-              <Icon size={24} strokeWidth={isActive ? 2.5 : 2} />
-              <span className={`text-xs mt-1 ${isActive ? 'font-medium' : ''}`}>{tab.label}</span>
+              <div className={`p-2 rounded-2xl transition-all duration-300 ${
+                isActive ? 'bg-stone-900 text-white shadow-lg shadow-stone-200' : 'bg-transparent'
+              }`}>
+                <tab.icon size={isActive ? 22 : 20} strokeWidth={isActive ? 2.5 : 2} />
+              </div>
+              <span className={`text-[10px] font-medium tracking-wider ${
+                isActive ? 'opacity-100 font-bold' : 'opacity-70'
+              }`}>
+                {tab.label}
+              </span>
             </button>
           );
         })}
@@ -38,13 +64,3 @@ export const BottomNav: React.FC<BottomNavProps> = ({ currentTab, onTabChange })
     </div>
   );
 };
-
-export const Header: React.FC<{ title: string; subtitle?: string; rightAction?: React.ReactNode }> = ({ title, subtitle, rightAction }) => (
-  <div className="sticky top-0 z-40 bg-stone-50/90 backdrop-blur-md border-b border-stone-200 px-4 h-14 flex items-center justify-between shadow-sm">
-    <div>
-      <h1 className="text-lg font-serif font-bold text-stone-900 tracking-wide">{title}</h1>
-      {subtitle && <p className="text-xs text-stone-500">{subtitle}</p>}
-    </div>
-    {rightAction && <div>{rightAction}</div>}
-  </div>
-);

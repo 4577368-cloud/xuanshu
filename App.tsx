@@ -4,7 +4,7 @@ import { AppTab, ChartSubTab, UserProfile, BaziChart, Gender, TrendActivation, P
 import { calculateBazi, getGanZhiForYear, calculateAnnualTrend, getShenShaForDynamicPillar, calculateAnnualFortune, getAdvancedInterpretation } from './services/baziService';
 import { analyzeBaziStructured, BaziReport } from './services/geminiService';
 import { getArchives, saveArchive, deleteArchive, saveAiReportToArchive, updateArchiveTags, updateArchiveAvatar, updateArchiveName } from './services/storageService';
-import { User, Calendar, ArrowRight, Activity, BrainCircuit, RotateCcw, ChevronDown, Info, BarChart3, Tag, Zap, ScrollText, Stars, Clock, X, BookOpen, Compass, AlertTriangle, CheckCircle, MinusCircle, Crown, Search, Key, Sparkles, Smile, Heart, Star, Sun, Moon, Cloud, Ghost, Flower2, Bird, Cat, Edit2, Trash2, Plus, Copy, FileText, ChevronRight, Play, MapPin, Check, History, ClipboardCopy, Building, Baby, GitCommitHorizontal, Eye, EyeOff, ShieldCheck, Quote, TrendingUp, CalendarDays, Briefcase, LayoutPanelLeft } from 'lucide-react';
+import { User, Calendar, ArrowRight, Activity, BrainCircuit, RotateCcw, ChevronDown, Info, BarChart3, Tag, Zap, ScrollText, Stars, Clock, X, BookOpen, Compass, AlertTriangle, CheckCircle, MinusCircle, Crown, Search, Key, Sparkles, Smile, Heart, Star, Sun, Moon, Cloud, Ghost, Flower2, Bird, Cat, Edit2, Trash2, Plus, Copy, FileText, ChevronRight, Play, MapPin, Check, History, ClipboardCopy, Building, Baby, GitCommitHorizontal, Eye, EyeOff, ShieldCheck, Quote, TrendingUp, CalendarDays, Briefcase, LayoutPanelLeft, FolderOpen } from 'lucide-react';
 import { 
   interpretDayPillar, 
   interpretMonthPillar, 
@@ -228,6 +228,13 @@ const InfoModal: React.FC<{ data: ModalData | null; chart?: BaziChart | null; on
   const isDayMaster = pillarName === '日柱'; const branchBasic = CHAR_MEANINGS[branch];
   const advancedReadings: InterpretationResult[] = React.useMemo(() => { if (!chart || !data) return []; return getAdvancedInterpretation(chart, data); }, [chart, data]);
 
+  const ZODIAC_MAP: Record<string, string> = {
+    '子': '鼠', '丑': '牛', '寅': '虎', '卯': '兔',
+    '辰': '龙', '巳': '蛇', '午': '马', '未': '羊',
+    '申': '猴', '酉': '鸡', '戌': '狗', '亥': '猪'
+  };
+  const zodiac = ZODIAC_MAP[branch] || '';
+
   return (
     <div className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center">
       <div className="absolute inset-0 bg-stone-900/40 backdrop-blur-sm transition-opacity" onClick={onClose}/>
@@ -239,7 +246,7 @@ const InfoModal: React.FC<{ data: ModalData | null; chart?: BaziChart | null; on
         <div className="overflow-y-auto p-4 space-y-4 no-scrollbar flex-1">
             <div className="flex gap-3">
                  <div className="flex-1 bg-gradient-to-br from-stone-50 to-stone-100 border border-stone-200 rounded-lg p-3 flex flex-col items-center"><span className="text-[10px] text-stone-400 font-bold uppercase mb-1">天干</span><ElementText text={stem} className="text-4xl font-serif font-bold mb-1" /><span className="text-xs text-stone-500">{stemElement} · {tenGod}</span></div>
-                 <div className="flex-1 bg-gradient-to-br from-stone-50 to-stone-100 border border-stone-200 rounded-lg p-3 flex flex-col items-center"><span className="text-[10px] text-stone-400 font-bold uppercase mb-1">地支</span><ElementText text={branch} className="text-4xl font-serif font-bold mb-1" /><span className="text-xs text-stone-500">{branchElement} · {ganZhi.zhiElement}</span></div>
+                 <div className="flex-1 bg-gradient-to-br from-stone-50 to-stone-100 border border-stone-200 rounded-lg p-3 flex flex-col items-center"><span className="text-[10px] text-stone-400 font-bold uppercase mb-1">地支</span><ElementText text={branch} className="text-4xl font-serif font-bold mb-1" /><span className="text-xs text-stone-500">{branchElement} · {zodiac}</span></div>
             </div>
             {/* --- 新增：四柱及运势深度解读卡片 --- */}
             {chart && (
@@ -294,200 +301,34 @@ const InfoModal: React.FC<{ data: ModalData | null; chart?: BaziChart | null; on
   );
 };
 
-const TipsView: React.FC<{ chart: BaziChart | null }> = ({ chart }) => {
-  if (!chart) {
-    return (
-      <div className="flex flex-col items-center justify-center h-full p-8 text-center space-y-4">
-        <div className="bg-stone-200 p-4 rounded-full">
-           <Sparkles size={32} className="text-stone-400" />
-        </div>
-        <h3 className="text-lg font-bold text-stone-600">命理提示</h3>
-        <p className="text-sm text-stone-400">
-          请先在首页进行【排盘推演】，<br/>此处将展示您的五行强弱、神煞布局等深度资讯。
-        </p>
-      </div>
-    );
-  }
-
-  // Collect all unique Shen Sha with pillar info
-  const allShenShaMap = new Map<string, string[]>();
-  ['year', 'month', 'day', 'hour'].forEach(key => {
-      const p = chart.pillars[key as keyof typeof chart.pillars];
-      p.shenSha.forEach(ss => {
-          const cleanName = ss.replace(/\(.*\)/, '');
-          if (!allShenShaMap.has(cleanName)) allShenShaMap.set(cleanName, []);
-          allShenShaMap.get(cleanName)?.push(p.name);
-      });
-  });
-
-  const getShenShaConfig = (name: string) => {
-      if (name.includes('贵人') || name.includes('德') || name.includes('喜') || name.includes('红鸾') || name.includes('解神') || name.includes('天赦') || name.includes('将星') || name.includes('金舆') || name.includes('学堂') || name.includes('词馆')) {
-          return { bg: 'bg-amber-50', border: 'border-amber-100', text: 'text-amber-800', tagBg: 'bg-amber-100', tagText: 'text-amber-700', desc: 'text-amber-900/70', icon: Star };
-      }
-      if (name.includes('桃花') || name.includes('咸池') || name.includes('红艳') || name.includes('孤鸾') || name.includes('阴差') || name.includes('四废') || name.includes('八专') || name.includes('九丑')) {
-          return { bg: 'bg-rose-50', border: 'border-rose-100', text: 'text-rose-800', tagBg: 'bg-rose-100', tagText: 'text-rose-700', desc: 'text-rose-900/70', icon: Heart };
-      }
-      if (name.includes('驿马') || name.includes('劫煞') || name.includes('灾煞') || name.includes('亡神')) {
-          return { bg: 'bg-sky-50', border: 'border-sky-100', text: 'text-sky-800', tagBg: 'bg-sky-100', tagText: 'text-sky-700', desc: 'text-sky-900/70', icon: Zap };
-      }
-      if (name.includes('禄') || name.includes('羊刃') || name.includes('飞刃') || name.includes('金神') || name.includes('魁罡') || name.includes('国印')) {
-          return { bg: 'bg-emerald-50', border: 'border-emerald-100', text: 'text-emerald-800', tagBg: 'bg-emerald-100', tagText: 'text-emerald-700', desc: 'text-amber-900/70', icon: Crown };
-      }
-      if (name.includes('华盖') || name.includes('孤辰') || name.includes('寡宿') || name.includes('天医') || name.includes('六秀') || name.includes('太极')) {
-          return { bg: 'bg-violet-50', border: 'border-violet-100', text: 'text-violet-800', tagBg: 'bg-violet-100', tagText: 'text-violet-700', desc: 'text-violet-900/70', icon: BookOpen };
-      }
-      return { bg: 'bg-stone-100', border: 'border-stone-200', text: 'text-stone-700', tagBg: 'bg-stone-200', tagText: 'text-stone-500', desc: 'text-stone-500', icon: Sparkles };
-  };
-
-  return (
-    <div className="flex flex-col h-full bg-stone-100 overflow-y-auto p-4 custom-scrollbar pb-24">
-        {/* Five Elements */}
-        <div className="bg-white rounded-xl border border-stone-200 p-5 shadow-sm mb-4">
-            <h4 className="font-bold text-stone-800 mb-4 flex items-center gap-2"><BarChart3 size={16} /> 五行强弱分布</h4>
-            <div className="space-y-3">
-                {['木', '火', '土', '金', '水'].map(el => {
-                    const count = chart.wuxingCounts[el] || 0;
-                    const max = Math.max(...Object.values(chart.wuxingCounts));
-                    const percent = max > 0 ? (count / max) * 100 : 0;
-                    const colors: Record<string, string> = {'木':'bg-green-500','火':'bg-red-500','土':'bg-amber-600','金':'bg-orange-400','水':'bg-blue-500'};
-                    return (
-                        <div key={el} className="flex items-center gap-3">
-                            <div className={`w-8 h-8 rounded-lg ${colors[el].replace('500','100').replace('600','100').replace('400','100')} flex items-center justify-center font-bold text-sm ${colors[el].replace('bg-','text-')}`}>
-                                {el}
-                            </div>
-                            <div className="flex-1 h-3 bg-stone-100 rounded-full overflow-hidden">
-                                <div className={`h-full ${colors[el]} transition-all duration-500`} style={{width: `${percent}%`}}></div>
-                            </div>
-                            <span className="font-bold text-stone-700 w-6 text-right">{count}</span>
-                        </div>
-                    )
-                })}
-            </div>
-        </div>
-
-        {/* Hidden Stems */}
-        <div className="bg-white rounded-xl border border-stone-200 p-4 shadow-sm mb-4">
-            <h4 className="font-bold text-stone-800 mb-3 flex items-center gap-2"><Search size={16} /> 藏干深浅</h4>
-            <div className="space-y-3">
-                {['year', 'month', 'day', 'hour'].map(key => {
-                    const p = chart.pillars[key as keyof typeof chart.pillars];
-                    return (
-                        <div key={key} className="flex items-start gap-3 border-b border-stone-50 last:border-0 pb-2 last:pb-0">
-                            <div className="w-8 text-[10px] text-stone-400 pt-1 uppercase">{p.name}</div>
-                            <div className="flex-1 flex flex-wrap gap-2">
-                                {p.ganZhi.hiddenStems.map((hs, i) => (
-                                    <div key={i} className={`text-xs px-2 py-1 rounded border flex items-center gap-1 ${hs.type === '主气' ? 'bg-stone-800 text-white border-stone-800' : 'bg-stone-50 text-stone-600 border-stone-200'}`}>
-                                        <span className="font-serif font-bold">{hs.stem}</span>
-                                        <span className="opacity-70 scale-90 text-[10px]">({hs.shiShen})</span>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )
-                })}
-            </div>
-        </div>
-
-        {/* Shen Sha Layout */}
-        <div className="bg-white rounded-xl border border-stone-200 overflow-hidden shadow-sm mb-4">
-            <div className="bg-stone-50 px-4 py-3 border-b border-stone-100 font-bold text-sm text-stone-800 flex items-center gap-2">
-                <Stars size={16} className="text-purple-600" /> 神煞布局
-            </div>
-            <div className="divide-y divide-stone-100">
-                {['year', 'month', 'day', 'hour'].map(key => {
-                    const p = chart.pillars[key as keyof typeof chart.pillars];
-                    return (
-                        <div key={key} className="p-3 flex gap-3">
-                            <div className="w-10 shrink-0 flex flex-col items-center justify-center bg-stone-50 rounded-lg h-12">
-                                <span className="text-[10px] text-stone-400">{p.name}</span>
-                                <span className="font-bold text-stone-800">{p.ganZhi.zhi}</span>
-                            </div>
-                            <div className="flex-1 flex flex-wrap gap-1.5 items-center">
-                                {p.shenSha.length > 0 ? p.shenSha.map(s => {
-                                    const style = getShenShaConfig(s);
-                                    return (
-                                        <span key={s} className={`text-[10px] px-2 py-1 rounded border ${style.bg} ${style.border} ${style.text}`}>{s}</span>
-                                    );
-                                }) : <span className="text-xs text-stone-300 italic">无明显神煞</span>}
-                            </div>
-                        </div>
-                    )
-                })}
-            </div>
-        </div>
-
-        {/* Shen Sha Detailed List */}
-        {allShenShaMap.size > 0 && (
-            <div className="bg-white rounded-xl border border-stone-200 p-4 shadow-sm mb-4">
-                <h4 className="font-bold text-sm text-stone-800 mb-3 flex items-center gap-2"><BookOpen size={16} className="text-indigo-500" /> 神煞详解</h4>
-                <div className="grid grid-cols-1 gap-2">
-                    {Array.from(allShenShaMap.entries()).map(([name, pillars]) => {
-                        const desc = SHEN_SHA_DESCRIPTIONS[name] || '吉凶参半，需视全局而定。';
-                        const style = getShenShaConfig(name);
-                        const Icon = style.icon;
-                        return (
-                            <div key={name} className={`flex flex-col rounded-lg p-3 border transition-colors ${style.bg} ${style.border}`}>
-                                <div className="flex justify-between items-center mb-1">
-                                    <div className="flex items-center gap-2">
-                                        {Icon && <Icon size={14} className={style.text} />}
-                                        <span className={`font-bold text-sm ${style.text}`}>{name}</span>
-                                    </div>
-                                    <div className="flex gap-1">
-                                        {pillars.map(p => (
-                                            <span key={p} className={`text-[9px] px-1.5 py-0.5 rounded font-medium ${style.tagBg} ${style.tagText}`}>
-                                                {p}
-                                            </span>
-                                        ))}
-                                    </div>
-                                </div>
-                                <p className={`text-xs leading-relaxed ${style.desc}`}>{desc}</p>
-                            </div>
-                        );
-                    })}
-                </div>
-            </div>
-        )}
-
-        {/* Interactions */}
-        {chart.shenShaInteractions.length > 0 && (
-            <div className="bg-white rounded-xl border border-stone-200 p-4 shadow-sm mb-4">
-                <h4 className="font-bold text-sm text-stone-800 mb-3 flex items-center gap-2"><Zap size={16} className="text-amber-500" /> 组合吉凶</h4>
-                <div className="space-y-2">
-                    {chart.shenShaInteractions.map((inter, i) => (
-                        <div key={i} className={`p-3 rounded-lg border text-xs flex justify-between items-start ${inter.severity === '吉' ? 'bg-green-50 border-green-100 text-green-800' : 'bg-red-50 border-red-100 text-red-800'}`}>
-                            <div>
-                                <div className="font-bold mb-1">{inter.name}</div>
-                                <div className="opacity-80">{inter.description}</div>
-                            </div>
-                            <div className="font-bold text-[10px] uppercase tracking-wider opacity-60 bg-white/50 px-1 rounded">{inter.severity}</div>
-                        </div>
-                    ))}
-                </div>
-            </div>
-        )}
-    </div>
-  )
-}
-
-const HomeView: React.FC<{ onGenerate: (profile: UserProfile, subTab?: ChartSubTab) => void }> = ({ onGenerate }) => {
+// --- 🔥 HomeView: 按钮位置调整版 ---
+const HomeView: React.FC<{ 
+  onGenerate: (profile: UserProfile, subTab?: ChartSubTab) => void;
+  archives: UserProfile[]; 
+}> = ({ onGenerate, archives }) => {
   const [name, setName] = useState('');
   const [gender, setGender] = useState<Gender>('male');
-  // 核心修改：允许自由输入的日期 State，不强求标准格式
-  const [birthDate, setBirthDate] = useState('1990-01-01');
+  const [birthDate, setBirthDate] = useState(''); // 默认值
   const [birthTime, setBirthTime] = useState('12:00');
   const [isSolarTime, setIsSolarTime] = useState(false);
   const [province, setProvince] = useState('');
   const [city, setCity] = useState('');
   const [longitude, setLongitude] = useState<number | undefined>(undefined);
+  
+  // 弹窗状态
+  const [showArchiveList, setShowArchiveList] = useState(false);
 
-  // Handle Province Change
+  // 如果初始是空字符串以便输入，可以用 useEffect 初始化，或者直接保留默认值
+  // 这里为了体验顺滑，可以像上一步那样设为空，或者保留默认值配合 onFocus 清空
+  // 为了稳妥，这里先保留默认值，如果您之前改了为空，可以继续保持为空
+  // const [birthDate, setBirthDate] = useState(''); 
+
   const handleProvinceChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
       setProvince(e.target.value);
-      setCity(''); // Reset city
-      setLongitude(undefined); // Reset longitude
+      setCity('');
+      setLongitude(undefined);
   };
 
-  // Handle City Change
   const handleCityChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
       const cityName = e.target.value;
       setCity(cityName);
@@ -498,46 +339,45 @@ const HomeView: React.FC<{ onGenerate: (profile: UserProfile, subTab?: ChartSubT
       }
   };
 
-  // 1. onChange: 只负责接收用户输入，不做任何“自作聪明”的修改
-  // 允许用户输入 1986、19868、198682... 等中间状态
   const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
-    // 允许输入数字和横杠，禁止其他字符
     if (/^[\d-]*$/.test(val)) {
       setBirthDate(val); 
     }
   };
 
-  // 2. onBlur: 当用户输完离开时，才进行“强力格式化”
   const handleDateBlur = () => {
-    // 去除横杠，只看数字
     let raw = birthDate.replace(/\D/g, '');
-    
-    // 情况 A: 用户输入了完整 8 位 (19860827) -> 完美，转为 1986-08-27
     if (raw.length === 8) {
       setBirthDate(`${raw.slice(0, 4)}-${raw.slice(4, 6)}-${raw.slice(6, 8)}`);
-    }
-    // 情况 B: 用户输入了 7 位 (1986827) -> 可能是 1986-8-27，尝试补全
-    // 逻辑：年份4位 + 月份1位 + 日期2位 (通常是月份缺0)
-    else if (raw.length === 7) {
+    } else if (raw.length === 7) {
       const y = raw.slice(0, 4);
-      const m = raw.slice(4, 5); // 取1位作为月份
+      const m = raw.slice(4, 5); 
       const d = raw.slice(5, 7);
-      setBirthDate(`${y}-0${m}-${d}`); // 补全为 1986-08-27
-    }
-    // 情况 C: 用户输入了 6 位 (198681) -> 可能是 1986-8-1
-    else if (raw.length === 6) {
+      setBirthDate(`${y}-0${m}-${d}`);
+    } else if (raw.length === 6) {
         const y = raw.slice(0, 4);
         const m = raw.slice(4, 5);
         const d = raw.slice(5, 6);
-        setBirthDate(`${y}-0${m}-0${d}`); // 补全为 1986-08-01
+        setBirthDate(`${y}-0${m}-0${d}`);
     }
-    // 其他情况不做处理，保留原样让用户自己看
+  };
+
+  const handleLoadProfile = (p: UserProfile) => {
+    setName(p.name);
+    setGender(p.gender);
+    setBirthDate(p.birthDate);
+    setBirthTime(p.birthTime);
+    setIsSolarTime(p.isSolarTime);
+    setProvince(p.province || '');
+    setCity(p.city || '');
+    setLongitude(p.longitude);
+    setShowArchiveList(false); 
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!birthDate || !birthTime) return; // 只要求时间和日期
+    if (!birthDate || !birthTime) return;
 
     const profile: UserProfile = {
       id: Date.now().toString(),
@@ -548,7 +388,7 @@ const HomeView: React.FC<{ onGenerate: (profile: UserProfile, subTab?: ChartSubT
       isSolarTime,
       province,
       city,
-      longitude, // Pass longitude to service
+      longitude,
       createdAt: Date.now(),
       avatar: 'default'
     };
@@ -557,10 +397,10 @@ const HomeView: React.FC<{ onGenerate: (profile: UserProfile, subTab?: ChartSubT
 
   return (
     <div className="flex flex-col h-full bg-white p-6 overflow-y-auto pb-24">
-       <div className="text-center mb-6 mt-4">
-       <div className="w-16 h-16 mx-auto mb-3 shadow-lg">
-    <img src="https://imgus.tangbuy.com/static/images/2026-01-10/631ac4d3602b4f508bb0cad516683714-176803435086117897846087613804795.png" className="w-full h-full object-contain rounded-2xl" alt="Logo" />
-</div>   
+       <div className="text-center mb-6 mt-4 relative">
+           <div className="w-16 h-16 mx-auto mb-3 shadow-lg">
+                <img src="https://imgus.tangbuy.com/static/images/2026-01-10/631ac4d3602b4f508bb0cad516683714-176803435086117897846087613804795.png" className="w-full h-full object-contain rounded-2xl" alt="Logo" />
+           </div>   
            <h2 className="text-2xl font-serif font-bold text-stone-800 tracking-wider">玄枢命理</h2>
            <p className="text-xs text-stone-400 mt-1 tracking-widest uppercase">传统八字 · 深度解析</p>
        </div>
@@ -603,26 +443,23 @@ const HomeView: React.FC<{ onGenerate: (profile: UserProfile, subTab?: ChartSubT
               <div className="relative">
                 <input 
                   type="text" 
-                  inputMode="numeric" // 手机端弹出数字键盘
+                  inputMode="numeric"
                   value={birthDate} 
-                  onChange={handleDateChange} // 👈 只有纯粹的更新，无干扰
-                  onBlur={handleDateBlur}     // 👈 离开时才格式化
-                  placeholder="如: 19860827 (支持连写)" 
+                  onChange={handleDateChange} 
+                  onBlur={handleDateBlur} 
+                  placeholder="如: 19880109" 
                   maxLength={10} 
                   className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-3 outline-none focus:ring-2 focus:ring-stone-900/10 focus:border-stone-400 font-sans text-sm tracking-widest"
                   required
                 />
                 
-                {/* 只有当格式完全正确时 (YYYY-MM-DD)，才显示绿色对勾 */}
                 {/^\d{4}-\d{2}-\d{2}$/.test(birthDate) && (
                   <div className="absolute right-3 top-1/2 -translate-y-1/2 text-green-500 animate-in zoom-in duration-300">
                     <Check size={16} />
                   </div>
                 )}
               </div>
-              <p className="text-[10px] text-stone-400 mt-1 pl-1">
-                支持 8 位纯数字连写 (推荐)，如 <b>19900101</b>
-              </p>
+           
             </div>
             <div>
               <label className="block text-xs font-bold text-stone-400 uppercase tracking-wider mb-2">出生时间</label>
@@ -693,18 +530,61 @@ const HomeView: React.FC<{ onGenerate: (profile: UserProfile, subTab?: ChartSubT
               )}
           </div>
 
-          <button 
-            type="submit" 
-            className="w-full bg-stone-900 text-white font-bold py-4 rounded-xl shadow-xl shadow-stone-200 hover:bg-stone-800 active:scale-[0.98] transition-all flex items-center justify-center gap-2 mt-4"
-          >
-            <Compass size={20} />
-            排盘推演
-          </button>
+          <div className="space-y-3 pt-2">
+            <button 
+                type="submit" 
+                className="w-full bg-stone-900 text-white font-bold py-4 rounded-xl shadow-xl shadow-stone-200 hover:bg-stone-800 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+            >
+                <Compass size={20} />
+                排盘推演
+            </button>
+
+            {/* 🔥 已移动：调用存档按钮放在这里 (下方) */}
+            {archives.length > 0 && (
+                <button 
+                type="button" // 关键：防止触发表单提交
+                onClick={() => setShowArchiveList(true)}
+                className="w-full bg-white border border-stone-200 text-stone-500 font-bold py-3 rounded-xl flex items-center justify-center gap-2 hover:bg-stone-50 transition-colors"
+                >
+                <FolderOpen size={18} />
+                调用已有存档 ({archives.length})
+                </button>
+            )}
+          </div>
        </form>
+
+       {/* 🔥 存档选择弹窗 */}
+       {showArchiveList && (
+         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+           <div className="absolute inset-0 bg-stone-900/40 backdrop-blur-sm" onClick={() => setShowArchiveList(false)} />
+           <div className="relative bg-white w-full max-w-sm rounded-2xl shadow-2xl flex flex-col max-h-[70vh]">
+             <div className="flex items-center justify-between p-4 border-b border-stone-100">
+               <h3 className="font-bold text-stone-800">选择存档</h3>
+               <button onClick={() => setShowArchiveList(false)} className="p-1 rounded-full hover:bg-stone-100 text-stone-400"><X size={20}/></button>
+             </div>
+             <div className="overflow-y-auto p-2 space-y-2 flex-1">
+               {archives.map(p => (
+                 <div key={p.id} onClick={() => handleLoadProfile(p)} className="flex items-center p-3 hover:bg-stone-50 rounded-xl cursor-pointer border border-transparent hover:border-stone-100 transition-all">
+                   <AvatarIcon name={p.avatar} size={16} className="mr-3" />
+                   <div className="flex-1">
+                     <div className="flex justify-between items-center">
+                       <span className="font-bold text-stone-800 text-sm">{p.name}</span>
+                       <span className="text-[10px] text-stone-400">{p.gender === 'male' ? '男' : '女'}</span>
+                     </div>
+                     <div className="text-xs text-stone-500 mt-0.5">
+                       {p.birthDate} {p.birthTime}
+                     </div>
+                   </div>
+                   <ChevronRight size={16} className="text-stone-300" />
+                 </div>
+               ))}
+             </div>
+           </div>
+         </div>
+       )}
     </div>
   );
 };
-
 const ChartView: React.FC<{ 
   profile: UserProfile; 
   chart: BaziChart; 
@@ -720,13 +600,10 @@ const ChartView: React.FC<{
   const [analysisYear, setAnalysisYear] = useState(new Date().getFullYear());
   const [annualFortune, setAnnualFortune] = useState<AnnualFortune | null>(null);
   
-  // AI API KEY State
   const [apiKey, setApiKey] = useState(() => localStorage.getItem('ai_api_key') || '');
   const [showApiKey, setShowApiKey] = useState(false);
 
   useEffect(() => {
-    // If there's an existing report in the profile, we don't have its structured format,
-    // so we'll just show the text if available.
   }, [profile.id]);
 
   useEffect(() => {
@@ -766,7 +643,6 @@ const ChartView: React.FC<{
     localStorage.setItem('ai_api_key', val);
   };
 
-  // Helper to detect platform
   const detectedPlatform = useMemo(() => {
     if (!apiKey) return null;
     if (apiKey.includes('ali') || apiKey.length > 45) return { name: '阿里云百炼', color: 'text-orange-600 bg-orange-50' };
@@ -794,19 +670,19 @@ const ChartView: React.FC<{
     { id: ChartSubTab.DETAIL, label: '大运流年' },
     { id: ChartSubTab.ANALYSIS, label: '大师解读' }
   ];
- // --- Grid Renderers ---
+
   const renderBasicGrid = () => {
     const dayGan = chart.pillars.day.ganZhi.gan;
-  const dayZhi = chart.pillars.day.ganZhi.zhi;
-  const dayGanIdx = getStemIndex(dayGan);
-  const dayZhiIdx = EARTHLY_BRANCHES.indexOf(dayZhi);
-  const kwIndex = (dayZhiIdx - dayGanIdx + 12) % 12;
-  const kwMap: Record<number, string[]> = { 
-    0: ['戌', '亥'], 10: ['申', '酉'], 8: ['午', '未'], 
-    6: ['辰', '巳'], 4: ['寅', '卯'], 2: ['子', '丑'] 
-  };
-  const dayKongWangBranches = kwMap[kwIndex] || [];
-  const isKongWang = (zhi: string) => dayKongWangBranches.includes(zhi);
+    const dayZhi = chart.pillars.day.ganZhi.zhi;
+    const dayGanIdx = getStemIndex(dayGan);
+    const dayZhiIdx = EARTHLY_BRANCHES.indexOf(dayZhi);
+    const kwIndex = (dayZhiIdx - dayGanIdx + 12) % 12;
+    const kwMap: Record<number, string[]> = { 
+      0: ['戌', '亥'], 10: ['申', '酉'], 8: ['午', '未'], 
+      6: ['辰', '巳'], 4: ['寅', '卯'], 2: ['子', '丑'] 
+    };
+    const dayKongWangBranches = kwMap[kwIndex] || [];
+    const isKongWang = (zhi: string) => dayKongWangBranches.includes(zhi);
     const pillars = [
       { key: 'year', label: '年柱', data: chart.pillars.year },
       { key: 'month', label: '月柱', data: chart.pillars.month },
@@ -814,67 +690,68 @@ const ChartView: React.FC<{
       { key: 'hour', label: '时柱', data: chart.pillars.hour },
     ];
 
-  const rows = [
-  { label: '主星', render: (p: Pillar) => p.name === '日柱' ? '日元' : (p.ganZhi.shiShenGan || '-') },
-  { label: '天干', render: (p: Pillar) => (<div onClick={() => openModal(p.name, p.ganZhi, p.shenSha, p.kongWang)} className="cursor-pointer active:scale-95 transition-transform"><ElementText text={p.ganZhi.gan} className="text-2xl font-bold font-serif" /></div>) },
-  { label: '地支', render: (p: Pillar) => (<div onClick={() => openModal(p.name, p.ganZhi, p.shenSha, p.kongWang)} className="cursor-pointer active:scale-95 transition-transform"><ElementText text={p.ganZhi.zhi} className="text-2xl font-bold font-serif" /></div>) },
-  { label: '藏干', render: (p: Pillar) => (<div className="flex flex-col text-[10px] space-y-0.5 leading-none items-center">{p.ganZhi.hiddenStems.map((h, i) => (<span key={i} className={h.type === '主气' ? 'font-bold text-stone-800' : 'text-stone-500 scale-90'}>{h.stem}{FIVE_ELEMENTS[h.stem]}</span>))}</div>) },
-  { label: '副星', render: (p: Pillar) => (<div className="flex flex-col text-[10px] space-y-0.5 leading-none text-stone-500 items-center">{p.ganZhi.hiddenStems.map((h, i) => <span key={i} className="whitespace-nowrap scale-90">{h.shiShen}</span>)}</div>) },
-  { label: '纳音', render: (p: Pillar) => <span className="text-[10px] scale-90 whitespace-nowrap text-stone-500">{p.ganZhi.naYin}</span> },
-  { label: '星运', render: (p: Pillar) => <span className="text-xs text-stone-600">{p.ganZhi.lifeStage}</span> },
-  { label: '自坐', render: (p: Pillar) => <span className="text-xs text-stone-500">{p.ganZhi.selfLifeStage}</span> },
-  { 
-    label: '空亡', 
-    render: (p: Pillar) => 
-      isKongWang(p.ganZhi.zhi) ? 
-        <span className="text-[10px] bg-stone-200 px-1 rounded text-stone-600">空</span> : 
-        <span className="text-stone-200">—</span> 
-  }, // 👈👈👈 这里加逗号！
-  { 
-    label: '神煞',
-    render: (p: Pillar) => (
-      <div className="flex flex-wrap justify-center gap-1 w-full px-1 py-0.5 min-h-[24px]">
-        {p.shenSha.length === 0 ? (
-          <span className="text-[9px] text-stone-400">—</span>
-        ) : (
-          p.shenSha.map((s, i) => {
-            const isAuspicious = ['天乙', '太极', '文昌', '文星', '福星', '天德', '月德', '将星', '华盖', '金舆', '禄'].some(k => s.includes(k));
-            const isInauspicious = ['劫煞', '灾煞', '天煞', '地煞', '孤辰', '寡宿', '阴差阳错', '空亡'].some(k => s.includes(k));
-            const isPeachBlossom = ['桃花', '咸池', '红艳'].some(k => s.includes(k));
+    const rows = [
+      { label: '主星', render: (p: Pillar) => p.name === '日柱' ? '日元' : (p.ganZhi.shiShenGan || '-') },
+      { label: '天干', render: (p: Pillar) => (<div onClick={() => openModal(p.name, p.ganZhi, p.shenSha, p.kongWang)} className="cursor-pointer active:scale-95 transition-transform"><ElementText text={p.ganZhi.gan} className="text-2xl font-bold font-serif" /></div>) },
+      { label: '地支', render: (p: Pillar) => (<div onClick={() => openModal(p.name, p.ganZhi, p.shenSha, p.kongWang)} className="cursor-pointer active:scale-95 transition-transform"><ElementText text={p.ganZhi.zhi} className="text-2xl font-bold font-serif" /></div>) },
+      { label: '藏干', render: (p: Pillar) => (<div className="flex flex-col text-[10px] space-y-0.5 leading-none items-center">{p.ganZhi.hiddenStems.map((h, i) => (<span key={i} className={h.type === '主气' ? 'font-bold text-stone-800' : 'text-stone-500 scale-90'}>{h.stem}{FIVE_ELEMENTS[h.stem]}</span>))}</div>) },
+      { label: '副星', render: (p: Pillar) => (<div className="flex flex-col text-[10px] space-y-0.5 leading-none text-stone-500 items-center">{p.ganZhi.hiddenStems.map((h, i) => <span key={i} className="whitespace-nowrap scale-90">{h.shiShen}</span>)}</div>) },
+      { label: '纳音', render: (p: Pillar) => <span className="text-[10px] scale-90 whitespace-nowrap text-stone-500">{p.ganZhi.naYin}</span> },
+      { label: '星运', render: (p: Pillar) => <span className="text-xs text-stone-600">{p.ganZhi.lifeStage}</span> },
+      { label: '自坐', render: (p: Pillar) => <span className="text-xs text-stone-500">{p.ganZhi.selfLifeStage}</span> },
+      { 
+        label: '空亡', 
+        render: (p: Pillar) => 
+          isKongWang(p.ganZhi.zhi) ? 
+            <span className="text-[10px] bg-stone-200 px-1 rounded text-stone-600">空</span> : 
+            <span className="text-stone-200">—</span> 
+      },
+      { 
+        label: '神煞',
+        render: (p: Pillar) => (
+          <div className="flex flex-wrap justify-center gap-1 w-full px-1 py-0.5 min-h-[24px]">
+            {p.shenSha.length === 0 ? (
+              <span className="text-[9px] text-stone-400">—</span>
+            ) : (
+              p.shenSha.map((s, i) => {
+                const isAuspicious = ['天乙', '太极', '文昌', '文星', '福星', '天德', '月德', '将星', '华盖', '金舆', '禄'].some(k => s.includes(k));
+                const isInauspicious = ['劫煞', '灾煞', '天煞', '地煞', '孤辰', '寡宿', '阴差阳错', '空亡'].some(k => s.includes(k));
+                const isPeachBlossom = ['桃花', '咸池', '红艳'].some(k => s.includes(k));
 
-            let bgColor = 'bg-stone-100';
-            let textColor = 'text-stone-600';
-            let borderColor = 'border-stone-200';
+                let bgColor = 'bg-stone-100';
+                let textColor = 'text-stone-600';
+                let borderColor = 'border-stone-200';
 
-            if (isAuspicious) {
-              bgColor = 'bg-emerald-50';
-              textColor = 'text-emerald-700';
-              borderColor = 'border-emerald-200';
-            } else if (isInauspicious) {
-              bgColor = 'bg-rose-50';
-              textColor = 'text-rose-700';
-              borderColor = 'border-rose-200';
-            } else if (isPeachBlossom) {
-              bgColor = 'bg-amber-50';
-              textColor = 'text-amber-700';
-              borderColor = 'border-amber-200';
-            }
+                if (isAuspicious) {
+                  bgColor = 'bg-emerald-50';
+                  textColor = 'text-emerald-700';
+                  borderColor = 'border-emerald-200';
+                } else if (isInauspicious) {
+                  bgColor = 'bg-rose-50';
+                  textColor = 'text-rose-700';
+                  borderColor = 'border-rose-200';
+                } else if (isPeachBlossom) {
+                  bgColor = 'bg-amber-50';
+                  textColor = 'text-amber-700';
+                  borderColor = 'border-amber-200';
+                }
 
-            return (
-              <span
-                key={i}
-                className={`text-[8px] px-1 py-0.5 rounded border whitespace-nowrap ${bgColor} ${textColor} ${borderColor} leading-none`}
-                title={s}
-              >
-                {s}
-              </span>
-            );
-          })
-        )}
-      </div>
-    )
-  }   
-];
+                return (
+                  <span
+                    key={i}
+                    className={`text-[8px] px-1 py-0.5 rounded border whitespace-nowrap ${bgColor} ${textColor} ${borderColor} leading-none`}
+                    title={s}
+                  >
+                    {s}
+                  </span>
+                );
+              })
+            )}
+          </div>
+        )
+      }   
+    ];
+
     return (
       <div className="space-y-4">
          <ChartInfoCard chart={chart} />
@@ -882,6 +759,54 @@ const ChartView: React.FC<{
             <div className="grid grid-cols-5 divide-x divide-stone-200 bg-stone-100 border-b border-stone-300 text-center text-sm font-bold text-stone-700"><div className="py-2 bg-stone-200/50"></div>{pillars.map(p => <div key={p.key} className="py-2">{p.label}</div>)}</div>
             {rows.map((row, idx) => (<div key={idx} className={`grid grid-cols-5 divide-x divide-stone-200 border-b border-stone-100 ${idx % 2 === 0 ? 'bg-white' : 'bg-stone-50/50'}`}><div className="flex items-center justify-center font-bold text-xs text-stone-500 bg-stone-100/30 p-2">{row.label}</div>{pillars.map(p => (<div key={p.key} className="flex flex-col items-center justify-center p-1.5 text-center min-h-[2.5rem] relative">{row.render(p.data)}</div>))}</div>))}
          </div>
+
+         {/* 🔥 移入：五行强弱分布 */}
+         <div className="bg-white rounded-xl border border-stone-200 p-5 shadow-sm">
+            <h4 className="font-bold text-stone-800 mb-4 flex items-center gap-2"><BarChart3 size={16} /> 五行强弱分布</h4>
+            <div className="space-y-3">
+                {['木', '火', '土', '金', '水'].map(el => {
+                    const count = chart.wuxingCounts[el] || 0;
+                    const max = Math.max(...Object.values(chart.wuxingCounts));
+                    const percent = max > 0 ? (count / max) * 100 : 0;
+                    const colors: Record<string, string> = {'木':'bg-green-500','火':'bg-red-500','土':'bg-amber-600','金':'bg-orange-400','水':'bg-blue-500'};
+                    return (
+                        <div key={el} className="flex items-center gap-3">
+                            <div className={`w-8 h-8 rounded-lg ${colors[el].replace('500','100').replace('600','100').replace('400','100')} flex items-center justify-center font-bold text-sm ${colors[el].replace('bg-','text-')}`}>
+                                {el}
+                            </div>
+                            <div className="flex-1 h-3 bg-stone-100 rounded-full overflow-hidden">
+                                <div className={`h-full ${colors[el]} transition-all duration-500`} style={{width: `${percent}%`}}></div>
+                            </div>
+                            <span className="font-bold text-stone-700 w-6 text-right">{count}</span>
+                        </div>
+                    )
+                })}
+            </div>
+         </div>
+
+         {/* 🔥 移入：藏干深浅 */}
+         <div className="bg-white rounded-xl border border-stone-200 p-4 shadow-sm">
+            <h4 className="font-bold text-stone-800 mb-3 flex items-center gap-2"><Search size={16} /> 藏干深浅</h4>
+            <div className="space-y-3">
+                {['year', 'month', 'day', 'hour'].map(key => {
+                    const p = chart.pillars[key as keyof typeof chart.pillars];
+                    return (
+                        <div key={key} className="flex items-start gap-3 border-b border-stone-50 last:border-0 pb-2 last:pb-0">
+                            <div className="w-8 text-[10px] text-stone-400 pt-1 uppercase">{p.name}</div>
+                            <div className="flex-1 flex flex-wrap gap-2">
+                                {p.ganZhi.hiddenStems.map((hs, i) => (
+                                    <div key={i} className={`text-xs px-2 py-1 rounded border flex items-center gap-1 ${hs.type === '主气' ? 'bg-stone-800 text-white border-stone-800' : 'bg-stone-50 text-stone-600 border-stone-200'}`}>
+                                        <span className="font-serif font-bold">{hs.stem}</span>
+                                        <span className="opacity-70 scale-90 text-[10px]">({hs.shiShen})</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )
+                })}
+            </div>
+         </div>
+
          <PatternCard pattern={chart.pattern} />
          <BalanceCard balance={chart.balance} dm={chart.dayMaster} />
       </div>
@@ -892,16 +817,13 @@ const ChartView: React.FC<{
   const renderDetailGrid = () => {
     const currentLuck = chart.luckPillars[selectedLuckIdx];
     const annualGanZhi = getGanZhiForYear(analysisYear, chart.dayMaster);
-    
     const birthYear = parseInt(profile.birthDate.split('-')[0]);
-    const ageInYear = analysisYear - birthYear + 1; // Nominal Age (虚岁)
-    
+    const ageInYear = analysisYear - birthYear + 1;
     const startDaYunAge = chart.luckPillars[0]?.startAge || 999;
     const isXiaoYun = ageInYear < startDaYunAge;
-    
     const xiaoYunData = chart.xiaoYun.find(x => x.age === ageInYear);
 
-const columns = [
+    const columns = [
         { title: '时柱', ganZhi: chart.pillars.hour.ganZhi, data: chart.pillars.hour },
         { title: '日柱', ganZhi: chart.pillars.day.ganZhi, data: chart.pillars.day },
         { title: '月柱', ganZhi: chart.pillars.month.ganZhi, data: chart.pillars.month },
@@ -929,47 +851,28 @@ const columns = [
                      <div className="bg-stone-100 flex items-center justify-center text-[10px] text-stone-500 font-bold">藏干</div>
                      {columns.map((col, i) => <div key={i} className="h-16 bg-white">{col.ganZhi && (<div className="flex flex-col items-center justify-center h-full w-full py-1 gap-0.5 px-0.5">{col.ganZhi.hiddenStems.map((h: any, j: number) => (<div key={j} className="flex items-center justify-between w-full max-w-[3.5rem] gap-1 leading-none"><span className="text-[10px] font-bold shrink-0"><ElementText text={h.stem} /></span><span className="text-[10px] text-stone-500 whitespace-nowrap scale-90">{h.shiShen}</span></div>))}</div>)}</div>)}
 
- {/* === 神煞 行 === */}
-<div className="bg-stone-100 flex items-center justify-center text-[10px] text-stone-500 font-bold">神煞</div>
-{columns.map((col, i) => {
-  // 🔥 核心修改：动态计算神煞
-  let shenShaList: string[] = [];
-  
-  if (col.data && col.data.shenSha) {
-    // 1. 如果是四柱（有 data 属性），直接使用已有的神煞
-    shenShaList = col.data.shenSha;
-  } else if (col.ganZhi) {
-    // 2. 如果是大运或流年（没有 data 属性，但有 ganZhi），实时计算
-    shenShaList = getShenShaForDynamicPillar(col.ganZhi.gan, col.ganZhi.zhi, chart);
-  }
-
-  return (
-    <div key={i} className="h-16 bg-white">
-      {shenShaList.length > 0 ? (
-        <div className="flex flex-wrap gap-1 justify-center items-center h-full px-1 overflow-y-auto no-scrollbar content-center">
-          {shenShaList.slice(0, 3).map((ss: string, idx: number) => (
-            <span
-              key={idx}
-              className={`text-[9px] px-1 rounded border whitespace-nowrap ${
-                ss.includes('贵人') || ss.includes('禄') ? 'bg-amber-50 text-amber-700 border-amber-100' :
-                ss.includes('桃花') || ss.includes('红艳') ? 'bg-rose-50 text-rose-700 border-rose-100' :
-                'bg-stone-100 text-stone-600 border-stone-200'
-              }`}
-            >
-              {ss}
-            </span>
-          ))}
-          {/* 如果超过3个神煞，显示+号 */}
-          {shenShaList.length > 3 && <span className="text-[8px] text-stone-400">+{shenShaList.length - 3}</span>}
-        </div>
-      ) : (
-        <div className="text-center text-[10px] text-stone-300 h-full flex items-center justify-center">
-          —
-        </div>
-      )}
-    </div>
-  );
-})}                    
+                     <div className="bg-stone-100 flex items-center justify-center text-[10px] text-stone-500 font-bold">神煞</div>
+                     {columns.map((col, i) => {
+                       let shenShaList: string[] = [];
+                       if (col.data && col.data.shenSha) {
+                         shenShaList = col.data.shenSha;
+                       } else if (col.ganZhi) {
+                         shenShaList = getShenShaForDynamicPillar(col.ganZhi.gan, col.ganZhi.zhi, chart);
+                       }
+                       return (
+                         <div key={i} className="h-16 bg-white">
+                           {shenShaList.length > 0 ? (
+                             <div className="flex flex-wrap gap-1 justify-center items-center h-full px-1 overflow-y-auto no-scrollbar content-center">
+                               {shenShaList.slice(0, 3).map((ss: string, idx: number) => (
+                                 <span key={idx} className={`text-[9px] px-1 rounded border whitespace-nowrap ${ss.includes('贵人')||ss.includes('禄')?'bg-amber-50 text-amber-700 border-amber-100':ss.includes('桃花')||ss.includes('红艳')?'bg-rose-50 text-rose-700 border-rose-100':'bg-stone-100 text-stone-600 border-stone-200'}`}>{ss}</span>
+                               ))}
+                               {shenShaList.length > 3 && <span className="text-[8px] text-stone-400">+{shenShaList.length - 3}</span>}
+                             </div>
+                           ) : <div className="text-center text-[10px] text-stone-300 h-full flex items-center justify-center">—</div>}
+                         </div>
+                       );
+                     })}
+                     
                      <div className="bg-stone-100 flex items-center justify-center text-[10px] text-stone-500">纳音</div>
                      {columns.map((col, i) => <div key={i} className="text-center py-1 text-[10px] text-stone-600 scale-90 whitespace-nowrap bg-stone-50/30 flex items-center justify-center">{col.ganZhi?.naYin}</div>)}
 
@@ -978,29 +881,20 @@ const columns = [
                 </div>
             </div>
 
+            <div className="flex overflow-x-auto divide-x divide-stone-200 no-scrollbar">
+              {chart.luckPillars.map(l => {
+                const isActive = !isXiaoYun && selectedLuckIdx === l.index - 1;
+                return (
+                  <div key={l.index} onClick={() => { setSelectedLuckIdx(l.index - 1); setAnalysisYear(l.startYear); }} className={`flex-1 min-w-[3rem] py-2 cursor-pointer transition-colors flex flex-col items-center ${isActive ? 'bg-amber-100 ring-inset ring-2 ring-amber-400' : 'bg-white hover:bg-stone-50'}`}>
+                    <span className="text-[9px] text-stone-400 mb-1">{l.startAge}岁</span>
+                    <div className="font-serif font-bold text-sm"><ElementText text={l.ganZhi.gan} /></div>
+                    <div className="font-serif font-bold text-sm"><ElementText text={l.ganZhi.zhi} /></div>
+                    <span className="text-[9px] text-stone-400 mt-1">{l.startYear}</span>
+                  </div>
+                );
+              })}
+            </div>
 
-<div className="flex overflow-x-auto divide-x divide-stone-200 no-scrollbar">
-  {chart.luckPillars.map(l => {
-    const isActive = !isXiaoYun && selectedLuckIdx === l.index - 1;
-    return (
-      <div
-        key={l.index}
-        onClick={() => {
-          setSelectedLuckIdx(l.index - 1);
-          setAnalysisYear(l.startYear);
-        }}
-        className={`flex-1 min-w-[3rem] py-2 cursor-pointer transition-colors flex flex-col items-center ${
-          isActive ? 'bg-amber-100 ring-inset ring-2 ring-amber-400' : 'bg-white hover:bg-stone-50'
-        }`}
-      >
-        <span className="text-[9px] text-stone-400 mb-1">{l.startAge}岁</span>
-        <div className="font-serif font-bold text-sm"><ElementText text={l.ganZhi.gan} /></div>
-        <div className="font-serif font-bold text-sm"><ElementText text={l.ganZhi.zhi} /></div>
-        <span className="text-[9px] text-stone-400 mt-1">{l.startYear}</span>
-      </div>
-    );
-  })}
-</div>
             <div className="bg-white border border-stone-300 rounded-lg overflow-hidden shadow-sm p-2">
                 <div className="text-xs font-bold text-stone-500 mb-2 px-1">流年选择 ({analysisYear})</div>
                 <div className="grid grid-cols-5 gap-1">
@@ -1010,29 +904,16 @@ const columns = [
                         const y = (lp.startYear as number) + i;
                         const gz = getGanZhiForYear(y, chart.dayMaster);
                         const isSelected = analysisYear === y;
-                        
                         const fortune = calculateAnnualFortune(chart, y);
-                        let borderColor = 'border-stone-200';
-                        let bgColor = 'bg-stone-50';
-                        
-                        if (isSelected) {
-                            borderColor = 'border-amber-400';
-                            bgColor = 'bg-amber-50';
-                        } else if (fortune.rating === '吉') {
-                            borderColor = 'border-green-200';
-                            bgColor = 'bg-green-50/50';
-                        } else if (fortune.rating === '凶') {
-                            borderColor = 'border-red-200';
-                            bgColor = 'bg-red-50/50';
-                        }
-
+                        let borderColor = 'border-stone-200'; let bgColor = 'bg-stone-50';
+                        if (isSelected) { borderColor = 'border-amber-400'; bgColor = 'bg-amber-50'; }
+                        else if (fortune.rating === '吉') { borderColor = 'border-green-200'; bgColor = 'bg-green-50/50'; }
+                        else if (fortune.rating === '凶') { borderColor = 'border-red-200'; bgColor = 'bg-red-50/50'; }
                         return (
                             <div key={y} onClick={() => setAnalysisYear(y)} className={`py-1 rounded border text-center cursor-pointer transition-colors relative ${bgColor} ${borderColor} hover:border-stone-300`}>
                                 <div className="text-[9px] text-stone-400">{y}</div>
                                 <div className="font-serif font-bold text-sm"><ElementText text={gz.gan} /><ElementText text={gz.zhi} /></div>
-                                {fortune.rating !== '平' && (
-                                    <div className={`absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full ${fortune.rating === '吉' ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                                )}
+                                {fortune.rating !== '平' && (<div className={`absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full ${fortune.rating === '吉' ? 'bg-green-500' : 'bg-red-500'}`}></div>)}
                             </div>
                         );
                     })}
@@ -1242,7 +1123,6 @@ const columns = [
   );
 };
 
-// Tag Management Modal
 const TagEditModal: React.FC<{ 
     profile: UserProfile; 
     onClose: () => void; 
@@ -1323,7 +1203,6 @@ const TagEditModal: React.FC<{
     );
 };
 
-// Report History Modal
 const ReportHistoryModal: React.FC<{
     profile: UserProfile;
     onClose: () => void;
@@ -1526,7 +1405,18 @@ const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
+    // 1. 加载存档
     setArchives(getArchives());
+
+    // 2. 紧急修复：注销所有 Service Worker
+    if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then((registrations) => {
+        registrations.forEach((registration) => {
+          console.log('Unregistering SW:', registration);
+          registration.unregister();
+        });
+      }).catch(err => console.warn('SW Cleanup failed:', err));
+    }
   }, []);
 
   const handleGenerate = (profile: UserProfile, subTab?: ChartSubTab) => {
@@ -1571,10 +1461,10 @@ const App: React.FC = () => {
   const renderContent = () => {
     switch (currentTab) {
       case AppTab.HOME:
-        return <HomeView onGenerate={handleGenerate} />;
+        return <HomeView onGenerate={handleGenerate} archives={archives} />;
       case AppTab.CHART:
         if (!currentProfile || !chart) {
-            return <HomeView onGenerate={handleGenerate} />;
+            return <HomeView onGenerate={handleGenerate} archives={archives} />;
         }
         return (
           <ChartView 
@@ -1589,12 +1479,11 @@ const App: React.FC = () => {
             onSaveReport={handleSaveReport}
           />
         );
-      case AppTab.TIPS:
-        return <TipsView chart={chart} />;
       case AppTab.ARCHIVE:
         return <ArchiveView archives={archives} onSelect={handleSelectArchive} setArchives={setArchives} />;
       default:
-        return <HomeView onGenerate={handleGenerate} />;
+        // Removed TIPS view fallthrough
+        return <HomeView onGenerate={handleGenerate} archives={archives} />;
     }
   };
 
@@ -1602,7 +1491,6 @@ const App: React.FC = () => {
       switch (currentTab) {
           case AppTab.HOME: return '玄枢命理';
           case AppTab.CHART: return currentProfile ? `${currentProfile.name}命盘` : '命盘推演';
-          case AppTab.TIPS: return '命理提示';
           case AppTab.ARCHIVE: return '档案管理';
           default: return '玄枢命理';
       }

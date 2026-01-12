@@ -176,7 +176,6 @@ export interface BaziChart {
 export enum AppTab {
   HOME = 'home',
   CHART = 'chart',
-  TIPS = 'tips',
   ARCHIVE = 'archive'
 }
 
