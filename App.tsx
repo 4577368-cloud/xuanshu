@@ -508,9 +508,9 @@ const handleSubmit = (e: React.FormEvent) => {
   return (
     <div className="flex flex-col h-full bg-white p-6 overflow-y-auto pb-24">
        <div className="text-center mb-6 mt-4">
-       <div className="w-16 h-16 mx-auto mb-3 shadow-lg">
-    <img src="https://imgus.tangbuy.com/static/images/2026-01-10/631ac4d3602b4f508bb0cad516683714-176803435086117897846087613804795.png" className="w-full h-full object-contain rounded-2xl" alt="Logo" />
-</div>   
+           <div className="w-16 h-16 bg-stone-900 rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-lg transform rotate-3">
+               <Compass size={32} className="text-amber-500" />
+           </div>
            <h2 className="text-2xl font-serif font-bold text-stone-800 tracking-wider">玄枢命理</h2>
            <p className="text-xs text-stone-400 mt-1 tracking-widest uppercase">传统八字 · 深度解析</p>
        </div>
@@ -836,10 +836,10 @@ const ChartView: React.FC<{
     const xiaoYunData = chart.xiaoYun.find(x => x.age === ageInYear);
 
 const columns = [
-        { title: '时柱', ganZhi: chart.pillars.hour.ganZhi, data: chart.pillars.hour },
-        { title: '日柱', ganZhi: chart.pillars.day.ganZhi, data: chart.pillars.day },
+        { title: '年柱', ganZhi: chart.pillars.year.ganZhi, data: chart.pillars.year },      
         { title: '月柱', ganZhi: chart.pillars.month.ganZhi, data: chart.pillars.month },
-        { title: '年柱', ganZhi: chart.pillars.year.ganZhi, data: chart.pillars.year },
+        { title: '时柱', ganZhi: chart.pillars.hour.ganZhi, data: chart.pillars.hour },
+        { title: '日柱', ganZhi: chart.pillars.day.ganZhi, data: chart.pillars.day },      
         { title: isXiaoYun ? '小运' : '大运', isDynamic: true, ganZhi: isXiaoYun ? xiaoYunData?.ganZhi : currentLuck?.ganZhi, age: isXiaoYun ? xiaoYunData?.age : currentLuck?.startAge, year: isXiaoYun ? xiaoYunData?.year : currentLuck?.startYear },
         { title: '流年', isDynamic: true, ganZhi: annualGanZhi, age: ageInYear, year: analysisYear }
     ];
@@ -1520,7 +1520,7 @@ const App: React.FC = () => {
   const getTitle = () => {
       switch (currentTab) {
           case AppTab.HOME: return '玄枢命理';
-          case AppTab.CHART: return currentProfile ? `${currentProfile.name}命盘` : '命盘推演';
+          case AppTab.CHART: return currentProfile ? `${currentProfile.name}的命盘` : '命盘推演';
           case AppTab.TIPS: return '命理提示';
           case AppTab.ARCHIVE: return '档案管理';
           default: return '玄枢命理';
