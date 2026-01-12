@@ -35,6 +35,17 @@ import {
   NA_YIN_DESCRIPTIONS
 } from './constants';
 
+// --- Constants ---
+const BRANCH_COMBINATIONS: Record<string, string> = {
+  '子': '丑', '丑': '子',
+  '寅': '亥', '亥': '寅',
+  '卯': '戌', '戌': '卯',
+  '辰': '酉', '酉': '辰',
+  '巳': '申', '申': '巳',
+  '午': '未', '未': '午'
+};
+
+// --- Helper Functions ---
 const getElement = (char: string): string => FIVE_ELEMENTS[char] || '土';
 const getStemIndex = (stem: string) => Math.max(0, HEAVENLY_STEMS.indexOf(stem));
 
@@ -218,13 +229,18 @@ export const interpretDayPillar = (chart: BaziChart): PillarInterpretation => {
   const gz = pillar.ganZhi;
   const revealedStems = [chart.pillars.year.ganZhi.gan, chart.pillars.month.ganZhi.gan, chart.pillars.hour.ganZhi.gan];
   const coreSymbolism = getGanSymbolism(gz.gan);
+  
+  // 1. 藏干解读
   let hiddenDynamics = '';
   const significantHiddens = gz.hiddenStems.filter(h => isSignificantHidden(h, revealedStems));
   if (significantHiddens.length > 0) {
     const parts = significantHiddens.map(h => `${h.stem}（${h.shiShen}，${getShiShenBrief(h.shiShen)}）`);
     hiddenDynamics = `地支藏干 ${parts.join('；')}，深刻影响内在性格与潜能。`;
   }
+  
   const naYinInfluence = getNaYinSymbolism(gz.naYin);
+  
+  // 2. 十二长生解读
   let lifeStageEffect = '';
   if (gz.lifeStage) {
     const baseDesc = gz.lifeStage;
@@ -234,37 +250,114 @@ export const interpretDayPillar = (chart: BaziChart): PillarInterpretation => {
       lifeStageEffect = `日主处${baseDesc}地，此为蓄势待发之象，非衰绝之兆。`;
     }
   }
+
+  // 3. 神煞解读 (🔥🔥🔥 这里是重点修改的部分 🔥🔥🔥)
   const descMap: Record<string, string> = {
-    '天乙贵人': '一生多逢凶化吉，得长辈或异性贵人助',
-    '文昌贵人': '聪明好学，利考试、文职、艺术',
-    '禄神': '自我实现力强，衣食无忧',
-    '羊刃': '精力旺盛，但易冲动争斗（女命不利婚姻）',
-    '红鸾': '异性缘佳，感情活跃',
-    '华盖': '艺术玄学天赋，略带孤高',
-    '驿马': '主变动、远行、奔波求财',
-    '孤辰': '内心孤独，喜独处思考'
+    // --- 吉星 ---
+    '天乙贵人': '一生多逢凶化吉，易得长辈或上级提携，遇难成祥',
+    '文昌贵人': '气质文雅，聪明好学，利于求学、考试及从事文职工作',
+    '禄神': '财官双美，一生衣食无忧，有创业或理财天赋',
+    '天德贵人': '品行端正，仁慈重义，能化解凶煞，保平安',
+    '月德贵人': '人缘极佳，遇事能逢凶化吉，福泽深厚',
+    '金舆': '福气之象，出入有车，配偶条件较好，生活富足',
+    '词馆': '利于文书、学术、文化事务，有文才表现机会',
+    '天厨': '饮食丰盛，有美食之福，或从事餐饮相关行业',
+    '将星': '有组织领导才能，处事果断，在职场或群体中易掌权', // ✅ 您要的将星
+    '天喜': '主喜庆之事，为人乐天，常有好事临门',
+
+    // --- 桃花/人缘 ---
+    '红艳': '异性缘极佳，且生性多情，艺术天分高，但需防感情风波', // ✅ 您要的红艳
+    '咸池': '又名桃花，情感丰富，注重情调，易陷感情纠葛',
+    '咸池（桃花）': '情感丰富，异性缘好，需防烂桃花干扰',
+    '红鸾': '性情温和，异性缘佳，早年利婚恋，晚年利添丁',
+
+    // --- 个性/凶星 ---
+    '羊刃': '性格刚毅，进取心强，但易冲动好胜，需防意外刑伤',
+    '劫煞': '行事偏激，性格刚烈，易遭突发挫折或破财，宜修身养性', // ✅ 您要的劫煞
+    '灾煞': '需防意外血光、病痛或官非，行事宜低调谨慎',
+    '亡神': '城府较深，喜怒不形于色，若无吉星引导易走极端',
+    '华盖': '聪慧孤高，喜好艺术、哲学或玄学，内心世界丰富',
+    '驿马': '生性好动，向往自由，适合奔波、外勤或远方求财',
+    '孤辰': '性格略显孤僻，精神独立，六亲缘分稍淡',
+    '寡宿': '内心常感孤独，不喜社交，晚年较为空寂',
+    '血刃': '主身体易受损伤，或与手术、血液有关，需注意安全',
+    '大耗': '生性豪爽，不善理财，钱财易大进大出'
   };
-  const shenShaEffects = pillar.shenSha.map(star => `${star}：${descMap[star] || '带来特殊机遇或挑战'}`);
+
+  // 如果找不到特定的神煞解释，才显示“带来特殊机遇或挑战”
+  const shenShaEffects = pillar.shenSha.map(star => {
+    // 处理带括号的情况，例如 "咸池(桃花)"
+    const cleanName = star.replace(/（.*）|\(.*\)/, '');
+    const desc = descMap[star] || descMap[cleanName] || '带来特殊机遇或挑战';
+    return `${star}：${desc}`;
+  });
+
+  // ==========================================
+  // 🔥 柱间互动深度解读
+  // ==========================================
+  const dayZhi = gz.zhi;
+  const monthZhi = chart.pillars.month.ganZhi.zhi;
+  const hourZhi = chart.pillars.hour.ganZhi.zhi;
+  const interactions: string[] = [];
+
+  // --- 月日互动 (家庭/事业 vs 自我/配偶) ---
+  if (BRANCH_CLASHES[dayZhi] === monthZhi) {
+    interactions.push('【月日相冲】日支与月令相冲，这是一个重要的变动信号。寓意您可能较早离开原生家庭，或者在30岁前后面临人生观、事业或婚姻的重大转折。您不愿受传统束缚，具有很强的独立闯荡精神，但也需注意婆媳或翁婿关系。');
+  } else if (BRANCH_COMBINATIONS[dayZhi] === monthZhi) {
+    interactions.push('【月日六合】日支与月令相合，代表您与长辈、上司或原生家庭关系融洽。这种和谐关系能为您提供稳定的支持，但也可能让您产生依赖心理，顾虑较多。');
+  } else if (dayZhi === monthZhi) {
+    interactions.push('【月日伏吟】日支与月令相同，这种重叠会让某种能量倍增，但也容易导致内心纠结、做事反复。在做重大决定时，建议多听取外部客观意见，避免陷入自我循环。');
+  }
+
+  // --- 日时互动 (自我/配偶 vs 子女/晚年) ---
+  if (BRANCH_CLASHES[dayZhi] === hourZhi) {
+    interactions.push('【日时相冲】日支冲时支，暗示中晚年生活可能较为忙碌或变动较多。可能是因为子女不在身边，或者您在晚年依然闲不下来，喜欢奔波操劳。');
+  } else if (BRANCH_COMBINATIONS[dayZhi] === hourZhi) {
+    interactions.push('【日时六合】日支合时支，这是一个温暖的信号，预示晚年生活安稳，与子女缘分深厚，家庭凝聚力强，能享天伦之乐。');
+  }
+
   const roleInDestiny = '日柱代表命主自身，是八字核心，反映性格、婚姻、健康及人生主线。';
-  const summaryParts = [coreSymbolism, hiddenDynamics, naYinInfluence, lifeStageEffect, ...shenShaEffects].filter(Boolean);
-  const integratedSummary = summaryParts.length ? `日柱综合：${summaryParts.join(' ')}。` : '信息不足，暂无法深度解读。';
+  
+  // 整合所有信息
+  const summaryParts = [
+    coreSymbolism, 
+    ...interactions, 
+    hiddenDynamics, 
+    naYinInfluence, 
+    lifeStageEffect, 
+    ...shenShaEffects
+  ].filter(Boolean);
+  
+  const integratedSummary = summaryParts.length ? `日柱综合：${summaryParts.join(' ')}` : '信息不足，暂无法深度解读。';
 
   return { pillarName: '日柱', coreSymbolism, hiddenDynamics, naYinInfluence, lifeStageEffect, shenShaEffects, roleInDestiny, integratedSummary };
 };
-
 export const interpretMonthPillar = (chart: BaziChart): PillarInterpretation => {
   const pillar = chart.pillars.month;
   const gz = pillar.ganZhi;
   const coreSymbolism = getGanSymbolism(gz.gan);
   const naYinInfluence = getNaYinSymbolism(gz.naYin);
   const roleInDestiny = '月柱为提纲，主青年运势、事业方向、兄弟姐妹及社会环境，是格局成败的关键。';
+  
   let patternInsight = '';
   if (chart.pattern.isEstablished) {
     patternInsight = `此柱构成${chart.pattern.name}，${chart.pattern.description}。`;
   } else if (chart.pattern.keyFactors.destructive.length > 0) {
     patternInsight = `本可成${chart.pattern.name}，但因${chart.pattern.keyFactors.destructive.join('、')}而破格。`;
   }
-  const lifeStageEffect = `月令处${gz.lifeStage}，主导全局五行旺衰。`;
+
+  // 新增：月令对日主的支持分析
+  const dayMasterElement = chart.dayMasterElement; // e.g. '火'
+  const monthElement = gz.zhiElement; // e.g. '木'
+  const relation = getRelation(monthElement, dayMasterElement); // e.g. '生'
+  let supportText = '';
+  if (relation === '同' || relation === '生') {
+    supportText = '月令生助日主，得天时之利，根基稳固，利于承担责任与挑战。';
+  } else {
+    supportText = '月令克泄日主，属于失令，需靠自身努力或后天大运来补足能量。';
+  }
+
+  const lifeStageEffect = `月令处${gz.lifeStage}，${supportText}`;
   const shenShaEffects = pillar.shenSha.map(s => `${s}：月柱见${s}，主青年时期相关影响`);
   const integratedSummary = [`月柱${gz.gan}${gz.zhi}（${gz.naYin}）`, coreSymbolism, patternInsight, naYinInfluence, lifeStageEffect].filter(Boolean).join(' ');
   return { pillarName: '月柱', coreSymbolism, hiddenDynamics: '', naYinInfluence, lifeStageEffect, shenShaEffects, roleInDestiny, integratedSummary };

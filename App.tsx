@@ -848,10 +848,10 @@ const ChartView: React.FC<{
     const xiaoYunData = chart.xiaoYun.find(x => x.age === ageInYear);
 
 const columns = [
-        { title: '时柱', ganZhi: chart.pillars.hour.ganZhi, data: chart.pillars.hour },
-        { title: '日柱', ganZhi: chart.pillars.day.ganZhi, data: chart.pillars.day },
-        { title: '月柱', ganZhi: chart.pillars.month.ganZhi, data: chart.pillars.month },
         { title: '年柱', ganZhi: chart.pillars.year.ganZhi, data: chart.pillars.year },
+        { title: '月柱', ganZhi: chart.pillars.month.ganZhi, data: chart.pillars.month },
+        { title: '日柱', ganZhi: chart.pillars.day.ganZhi, data: chart.pillars.day },
+        { title: '时柱', ganZhi: chart.pillars.hour.ganZhi, data: chart.pillars.hour },
         { title: isXiaoYun ? '小运' : '大运', isDynamic: true, ganZhi: isXiaoYun ? xiaoYunData?.ganZhi : currentLuck?.ganZhi, age: isXiaoYun ? xiaoYunData?.age : currentLuck?.startAge, year: isXiaoYun ? xiaoYunData?.year : currentLuck?.startYear },
         { title: '流年', isDynamic: true, ganZhi: annualGanZhi, age: ageInYear, year: analysisYear }
     ];
