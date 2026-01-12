@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { BottomNav, Header } from './components/Layout';
 import { AppTab, ChartSubTab, UserProfile, BaziChart, Gender, TrendActivation, Pillar, GanZhi, BalanceAnalysis, AnnualFortune, PatternAnalysis, InterpretationResult, AiReportRecord, ModalData } from './types';
-import { calculateBazi, getGanZhiForYear, calculateAnnualTrend, calculateAnnualFortune, getAdvancedInterpretation } from './services/baziService';
+import { calculateBazi, getGanZhiForYear, calculateAnnualTrend, getShenShaForDynamicPillar, calculateAnnualFortune, getAdvancedInterpretation } from './services/baziService';
 import { analyzeBaziStructured, BaziReport } from './services/geminiService';
 import { getArchives, saveArchive, deleteArchive, saveAiReportToArchive, updateArchiveTags, updateArchiveAvatar, updateArchiveName } from './services/storageService';
 import { User, Calendar, ArrowRight, Activity, BrainCircuit, RotateCcw, ChevronDown, Info, BarChart3, Tag, Zap, ScrollText, Stars, Clock, X, BookOpen, Compass, AlertTriangle, CheckCircle, MinusCircle, Crown, Search, Key, Sparkles, Smile, Heart, Star, Sun, Moon, Cloud, Ghost, Flower2, Bird, Cat, Edit2, Trash2, Plus, Copy, FileText, ChevronRight, Play, MapPin, Check, History, ClipboardCopy, Building, Baby, GitCommitHorizontal, Eye, EyeOff, ShieldCheck, Quote, TrendingUp, CalendarDays, Briefcase, LayoutPanelLeft } from 'lucide-react';
@@ -10,8 +10,8 @@ import {
   interpretMonthPillar, 
   interpretYearPillar, 
   interpretHourPillar,
-  interpretLuckPillar,   // 新增导入
-  interpretAnnualPillar  // 新增导入
+  interpretLuckPillar,
+  interpretAnnualPillar
 } from './services/baziService';
 import { 
   HEAVENLY_STEMS, 
@@ -848,10 +848,10 @@ const ChartView: React.FC<{
     const xiaoYunData = chart.xiaoYun.find(x => x.age === ageInYear);
 
 const columns = [
-        { title: '年柱', ganZhi: chart.pillars.year.ganZhi, data: chart.pillars.year },
-        { title: '月柱', ganZhi: chart.pillars.month.ganZhi, data: chart.pillars.month },
-        { title: '日柱', ganZhi: chart.pillars.day.ganZhi, data: chart.pillars.day },
         { title: '时柱', ganZhi: chart.pillars.hour.ganZhi, data: chart.pillars.hour },
+        { title: '日柱', ganZhi: chart.pillars.day.ganZhi, data: chart.pillars.day },
+        { title: '月柱', ganZhi: chart.pillars.month.ganZhi, data: chart.pillars.month },
+        { title: '年柱', ganZhi: chart.pillars.year.ganZhi, data: chart.pillars.year },
         { title: isXiaoYun ? '小运' : '大运', isDynamic: true, ganZhi: isXiaoYun ? xiaoYunData?.ganZhi : currentLuck?.ganZhi, age: isXiaoYun ? xiaoYunData?.age : currentLuck?.startAge, year: isXiaoYun ? xiaoYunData?.year : currentLuck?.startYear },
         { title: '流年', isDynamic: true, ganZhi: annualGanZhi, age: ageInYear, year: analysisYear }
     ];
@@ -878,20 +878,35 @@ const columns = [
  {/* === 神煞 行 === */}
 <div className="bg-stone-100 flex items-center justify-center text-[10px] text-stone-500 font-bold">神煞</div>
 {columns.map((col, i) => {
-  // Fix: Access shenSha from col.data (Pillar) or provide fallback if it's dynamic
-  const shenShaList = col.data?.shenSha || [];
+  // 🔥 核心修改：动态计算神煞
+  let shenShaList: string[] = [];
+  
+  if (col.data && col.data.shenSha) {
+    // 1. 如果是四柱（有 data 属性），直接使用已有的神煞
+    shenShaList = col.data.shenSha;
+  } else if (col.ganZhi) {
+    // 2. 如果是大运或流年（没有 data 属性，但有 ganZhi），实时计算
+    shenShaList = getShenShaForDynamicPillar(col.ganZhi.gan, col.ganZhi.zhi, chart);
+  }
+
   return (
     <div key={i} className="h-16 bg-white">
       {shenShaList.length > 0 ? (
-        <div className="flex flex-wrap gap-1 justify-center items-center h-full px-1">
+        <div className="flex flex-wrap gap-1 justify-center items-center h-full px-1 overflow-y-auto no-scrollbar content-center">
           {shenShaList.slice(0, 3).map((ss: string, idx: number) => (
             <span
               key={idx}
-              className="text-[10px] bg-amber-100 px-1 rounded text-amber-800 whitespace-nowrap"
+              className={`text-[9px] px-1 rounded border whitespace-nowrap ${
+                ss.includes('贵人') || ss.includes('禄') ? 'bg-amber-50 text-amber-700 border-amber-100' :
+                ss.includes('桃花') || ss.includes('红艳') ? 'bg-rose-50 text-rose-700 border-rose-100' :
+                'bg-stone-100 text-stone-600 border-stone-200'
+              }`}
             >
               {ss}
             </span>
           ))}
+          {/* 如果超过3个神煞，显示+号 */}
+          {shenShaList.length > 3 && <span className="text-[8px] text-stone-400">+{shenShaList.length - 3}</span>}
         </div>
       ) : (
         <div className="text-center text-[10px] text-stone-300 h-full flex items-center justify-center">

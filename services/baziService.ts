@@ -35,7 +35,7 @@ import {
   NA_YIN_DESCRIPTIONS
 } from './constants';
 
-// --- Constants ---
+// --- 1. 基础常量定义 ---
 const BRANCH_COMBINATIONS: Record<string, string> = {
   '子': '丑', '丑': '子',
   '寅': '亥', '亥': '寅',
@@ -45,7 +45,7 @@ const BRANCH_COMBINATIONS: Record<string, string> = {
   '午': '未', '未': '午'
 };
 
-// --- Helper Functions ---
+// --- 2. 基础辅助函数 ---
 const getElement = (char: string): string => FIVE_ELEMENTS[char] || '土';
 const getStemIndex = (stem: string) => Math.max(0, HEAVENLY_STEMS.indexOf(stem));
 
@@ -61,6 +61,82 @@ const getRelation = (origin: string, target: string): '生' | '克' | '同' | '�
 
 const getNaYinElement = (naYin: string): string => naYin.charAt(2);
 
+const getShiShen = (dayMasterIdx: number, targetStemIdx: number): string => {
+  if (dayMasterIdx < 0 || dayMasterIdx >= 10 || targetStemIdx < 0 || targetStemIdx >= 10) return '';
+  return TEN_GODS_MAP[dayMasterIdx][targetStemIdx];
+};
+
+const getGanSymbolism = (gan: string) => CHAR_MEANINGS[gan] || '';
+const getNaYinSymbolism = (naYin: string) => NA_YIN_DESCRIPTIONS[naYin] || '';
+const getShiShenBrief = (ss: string) => {
+    const map: Record<string, string> = {
+        '比肩': '竞争、合作、自我', '劫财': '破财、冲动、义气', '食神': '才华、享受、口福',
+        '伤官': '傲慢、叛逆、名声', '正财': '勤勉、稳定、妻子', '偏财': '投机、横财、父亲',
+        '正官': '地位、自律、丈夫', '七杀': '压力、霸气、权威', '正印': '贵人、仁慈、学问',
+        '偏印': '领悟、孤独、偏门'
+    };
+    return map[ss] || '';
+};
+
+const isSignificantHidden = (h: HiddenStem, revealed: string[]) => h.type === '主气' || revealed.includes(h.stem);
+
+// --- 🔥 关键辅助函数：宫位+十神断语 ---
+const getPositionTenGodReading = (pillar: '年' | '月' | '日' | '时', tenGod: string): string => {
+  const readings: Record<string, Record<string, string>> = {
+    '年': { 
+      '比肩': '【年干比肩】出身一般，早年家境可能拮据，上有兄姐或为养子，与父亲缘分稍淡。',
+      '劫财': '【年干劫财】祖业耗散，早年家境贫寒，父亲可能早衰或离家发展，早年生活波动大。',
+      '食神': '【年干食神】祖上富裕或父母慈祥，早年平安福气，这种人一般很难吃苦，童年幸福。',
+      '伤官': '【年干伤官】祖业飘零，或者父母缘分薄，小时候容易受伤或过继他人，早年内心叛逆。',
+      '正财': '【年干正财】出身富贵或书香门第，也是长子长孙的象征，早年物质优渥，得祖辈疼爱。',
+      '偏财': '【年干偏财】必生于商贾之家或父亲能干，若是独子，早年即能继承家业，有些早恋倾向。',
+      '正官': '【年干正官】世代书香或父母有公职，学业优秀，从小就是“别人家的孩子”，家教甚严。',
+      '七杀': '【年干七杀】出身寒微，或者小时候身体不好、多灾多难，父母管教极严，早年压力大。',
+      '正印': '【年干正印】母亲掌权或出身书香，非常有面子，学业顺遂，也是长子之象。',
+      '偏印': '【年干偏印】可能是庶出，或者小时候由继母、祖辈带大，家境变迁大，性格较为孤僻。'
+    },
+    '月': { 
+      '比肩': '【月干比肩】兄弟姐妹多或朋友多，性格独立，好胜心强，30岁前钱财难聚。',
+      '劫财': '【月干劫财】容易被朋友拖累破财，性格冲动，感情容易被横刀夺爱，合作需谨慎。',
+      '食神': '【月干食神】心宽体胖，人缘极佳，适合从事服务、艺术行业，青年时期运势平顺。',
+      '伤官': '【月干伤官】才华横溢但恃才傲物，容易频繁跳槽或创业，青年时期变动极大，不喜受管束。',
+      '正财': '【月干正财】勤俭持家，做事保守，青年时期就能有稳定收入，适合上班族。',
+      '偏财': '【月干偏财】为人豪爽，轻财重义，青年时期容易赚快钱也容易花光，不甘于死工资。',
+      '正官': '【月干正官】也是“正气官星”，为人正直，青年时期易得长辈提拔，有官运或管理才能。',
+      '七杀': '【月干七杀】青年时期压力巨大，或者出身贫寒靠自己打拼，有魄力但脾气暴躁。',
+      '正印': '【月干正印】仁慈宽厚，但依赖心重，青年时期贵人运强，适合从事文职或教育。',
+      '偏印': '【月干偏印】思维独特，有一技之长，但青年时期容易感到孤独，适合钻研冷门技术。'
+    },
+    '日': { 
+      '比肩': '【日坐比肩】配偶性格刚毅，与你互不相让，夫妻关系像朋友也像竞争对手，易有口角。',
+      '劫财': '【日坐劫财】配偶奢侈浪费或身体不佳，婚姻易有第三者介入，或者因配偶破财。',
+      '食神': '【日坐食神】配偶温和体贴，有福气且身材丰满，婚姻生活和谐，你能得配偶照顾。',
+      '伤官': '【日坐伤官】配偶才华高但嘴巴毒，容易看不起你，婚姻多争吵，女命尤忌（克夫）。',
+      '正财': '【日坐正财】配偶勤俭持家，是标准的贤内助（或好丈夫），婚姻稳定，重视经济基础。',
+      '偏财': '【日坐偏财】配偶精明能干，慷慨大方，但可能桃花较旺，或者配偶比你有钱。',
+      '正官': '【日坐正官】配偶相貌端庄，为人正直，家庭责任感强，你在家里地位较高。',
+      '七杀': '【日坐七杀】配偶性格暴躁，对你管束极严，或者配偶身体不好，婚姻压力较大。',
+      '正印': '【日坐正印】配偶仁慈，像长辈一样照顾你，虽然缺乏浪漫，但给你极大的安全感。',
+      '偏印': '【日坐偏印】配偶性格古怪，不易沟通，两人虽然在一起但内心有距离感，易晚婚。'
+    },
+    '时': { 
+      '比肩': '【时干比肩】晚年如果不存钱，容易被子女或朋友分光家产，也代表与子女像朋友，无代沟。',
+      '劫财': '【时干劫财】晚年破财之象，或者子女挥霍，也就是俗称的“败家子”风险，晚景需防穷困。',
+      '食神': '【时干食神】晚年享福，子女孝顺且肥胖（有福气），长寿之象，晚年不愁吃穿。',
+      '伤官': '【时干伤官】子女才华横溢但叛逆难管，或者晚年依然奔波，闲不住，易惹是非。',
+      '正财': '【时干正财】子女勤俭持家，晚年经济独立，无需担忧养老金，也是老来富之象。',
+      '偏财': '【时干偏财】老来富，或者晚年还有意外之财（如拆迁、投资获利），子女经商能干。',
+      '正官': '【时干正官】子女敦厚正直，晚年有名望，甚至子女能当官光耀门楣，晚年受人尊敬。',
+      '七杀': '【时干七杀】子女虽有出息但性情暴躁，或者晚年身体多病痛，压力大，子女不在身边。',
+      '正印': '【时干正印】晚年受人尊敬，思想精神富足，子女孝顺贴心，适合修身养性。',
+      '偏印': '【时干偏印】晚年孤独，或者沉迷宗教玄学，与子女缘分较淡，适合独处。'
+    }
+  };
+  return readings[pillar]?.[tenGod] || '';
+};
+
+// --- 3. 核心计算函数 ---
+
 const calculateTrueSolarTime = (date: Date, longitude: number): Date => {
     const standardMeridian = 120;
     const longitudeOffsetMinutes = (longitude - standardMeridian) * 4;
@@ -71,11 +147,6 @@ const calculateTrueSolarTime = (date: Date, longitude: number): Date => {
     const b = 2 * Math.PI * (dayOfYear - 81) / 365;
     const eotMinutes = 9.87 * Math.sin(2 * b) - 7.53 * Math.cos(b) - 1.5 * Math.sin(b);
     return new Date(date.getTime() + (longitudeOffsetMinutes + eotMinutes) * 60000);
-};
-
-const getShiShen = (dayMasterIdx: number, targetStemIdx: number): string => {
-  if (dayMasterIdx < 0 || dayMasterIdx >= 10 || targetStemIdx < 0 || targetStemIdx >= 10) return '';
-  return TEN_GODS_MAP[dayMasterIdx][targetStemIdx];
 };
 
 const createGanZhi = (gan: string, zhi: string, dayMasterGanIndex: number): GanZhi => {
@@ -208,400 +279,7 @@ const calculatePattern = (dm: string, pillars: any, balance: BalanceAnalysis, co
   };
 };
 
-// --- Pillar Interpretation Functions ---
-
-const getGanSymbolism = (gan: string) => CHAR_MEANINGS[gan] || '';
-const getNaYinSymbolism = (naYin: string) => NA_YIN_DESCRIPTIONS[naYin] || '';
-const getShiShenBrief = (ss: string) => {
-    const map: Record<string, string> = {
-        '比肩': '竞争、合作、自我', '劫财': '破财、冲动、义气', '食神': '才华、享受、口福',
-        '伤官': '傲慢、叛逆、名声', '正财': '勤勉、稳定、妻子', '偏财': '投机、横财、父亲',
-        '正官': '地位、自律、丈夫', '七杀': '压力、霸气、权威', '正印': '贵人、仁慈、学问',
-        '偏印': '领悟、孤独、偏门'
-    };
-    return map[ss] || '';
-};
-
-const isSignificantHidden = (h: HiddenStem, revealed: string[]) => h.type === '主气' || revealed.includes(h.stem);
-
-export const interpretDayPillar = (chart: BaziChart): PillarInterpretation => {
-  const pillar = chart.pillars.day;
-  const gz = pillar.ganZhi;
-  const revealedStems = [chart.pillars.year.ganZhi.gan, chart.pillars.month.ganZhi.gan, chart.pillars.hour.ganZhi.gan];
-  const coreSymbolism = getGanSymbolism(gz.gan);
-  
-  // 1. 藏干解读
-  let hiddenDynamics = '';
-  const significantHiddens = gz.hiddenStems.filter(h => isSignificantHidden(h, revealedStems));
-  if (significantHiddens.length > 0) {
-    const parts = significantHiddens.map(h => `${h.stem}（${h.shiShen}，${getShiShenBrief(h.shiShen)}）`);
-    hiddenDynamics = `地支藏干 ${parts.join('；')}，深刻影响内在性格与潜能。`;
-  }
-  
-  const naYinInfluence = getNaYinSymbolism(gz.naYin);
-  
-  // 2. 十二长生解读
-  let lifeStageEffect = '';
-  if (gz.lifeStage) {
-    const baseDesc = gz.lifeStage;
-    if (['死', '绝', '病'].includes(gz.lifeStage) && chart.balance.dayMasterStrength.level === '身弱') {
-      lifeStageEffect = `日主处${baseDesc}地且身弱，能量内敛，需防行动力不足或思虑过重。`;
-    } else {
-      lifeStageEffect = `日主处${baseDesc}地，此为蓄势待发之象，非衰绝之兆。`;
-    }
-  }
-
-  // 3. 神煞解读 (🔥🔥🔥 这里是重点修改的部分 🔥🔥🔥)
-  const descMap: Record<string, string> = {
-    // --- 吉星 ---
-    '天乙贵人': '一生多逢凶化吉，易得长辈或上级提携，遇难成祥',
-    '文昌贵人': '气质文雅，聪明好学，利于求学、考试及从事文职工作',
-    '禄神': '财官双美，一生衣食无忧，有创业或理财天赋',
-    '天德贵人': '品行端正，仁慈重义，能化解凶煞，保平安',
-    '月德贵人': '人缘极佳，遇事能逢凶化吉，福泽深厚',
-    '金舆': '福气之象，出入有车，配偶条件较好，生活富足',
-    '词馆': '利于文书、学术、文化事务，有文才表现机会',
-    '天厨': '饮食丰盛，有美食之福，或从事餐饮相关行业',
-    '将星': '有组织领导才能，处事果断，在职场或群体中易掌权', // ✅ 您要的将星
-    '天喜': '主喜庆之事，为人乐天，常有好事临门',
-
-    // --- 桃花/人缘 ---
-    '红艳': '异性缘极佳，且生性多情，艺术天分高，但需防感情风波', // ✅ 您要的红艳
-    '咸池': '又名桃花，情感丰富，注重情调，易陷感情纠葛',
-    '咸池（桃花）': '情感丰富，异性缘好，需防烂桃花干扰',
-    '红鸾': '性情温和，异性缘佳，早年利婚恋，晚年利添丁',
-
-    // --- 个性/凶星 ---
-    '羊刃': '性格刚毅，进取心强，但易冲动好胜，需防意外刑伤',
-    '劫煞': '行事偏激，性格刚烈，易遭突发挫折或破财，宜修身养性', // ✅ 您要的劫煞
-    '灾煞': '需防意外血光、病痛或官非，行事宜低调谨慎',
-    '亡神': '城府较深，喜怒不形于色，若无吉星引导易走极端',
-    '华盖': '聪慧孤高，喜好艺术、哲学或玄学，内心世界丰富',
-    '驿马': '生性好动，向往自由，适合奔波、外勤或远方求财',
-    '孤辰': '性格略显孤僻，精神独立，六亲缘分稍淡',
-    '寡宿': '内心常感孤独，不喜社交，晚年较为空寂',
-    '血刃': '主身体易受损伤，或与手术、血液有关，需注意安全',
-    '大耗': '生性豪爽，不善理财，钱财易大进大出'
-  };
-
-  // 如果找不到特定的神煞解释，才显示“带来特殊机遇或挑战”
-  const shenShaEffects = pillar.shenSha.map(star => {
-    // 处理带括号的情况，例如 "咸池(桃花)"
-    const cleanName = star.replace(/（.*）|\(.*\)/, '');
-    const desc = descMap[star] || descMap[cleanName] || '带来特殊机遇或挑战';
-    return `${star}：${desc}`;
-  });
-
-  // ==========================================
-  // 🔥 柱间互动深度解读
-  // ==========================================
-  const dayZhi = gz.zhi;
-  const monthZhi = chart.pillars.month.ganZhi.zhi;
-  const hourZhi = chart.pillars.hour.ganZhi.zhi;
-  const interactions: string[] = [];
-
-  // --- 月日互动 (家庭/事业 vs 自我/配偶) ---
-  if (BRANCH_CLASHES[dayZhi] === monthZhi) {
-    interactions.push('【月日相冲】日支与月令相冲，这是一个重要的变动信号。寓意您可能较早离开原生家庭，或者在30岁前后面临人生观、事业或婚姻的重大转折。您不愿受传统束缚，具有很强的独立闯荡精神，但也需注意婆媳或翁婿关系。');
-  } else if (BRANCH_COMBINATIONS[dayZhi] === monthZhi) {
-    interactions.push('【月日六合】日支与月令相合，代表您与长辈、上司或原生家庭关系融洽。这种和谐关系能为您提供稳定的支持，但也可能让您产生依赖心理，顾虑较多。');
-  } else if (dayZhi === monthZhi) {
-    interactions.push('【月日伏吟】日支与月令相同，这种重叠会让某种能量倍增，但也容易导致内心纠结、做事反复。在做重大决定时，建议多听取外部客观意见，避免陷入自我循环。');
-  }
-
-  // --- 日时互动 (自我/配偶 vs 子女/晚年) ---
-  if (BRANCH_CLASHES[dayZhi] === hourZhi) {
-    interactions.push('【日时相冲】日支冲时支，暗示中晚年生活可能较为忙碌或变动较多。可能是因为子女不在身边，或者您在晚年依然闲不下来，喜欢奔波操劳。');
-  } else if (BRANCH_COMBINATIONS[dayZhi] === hourZhi) {
-    interactions.push('【日时六合】日支合时支，这是一个温暖的信号，预示晚年生活安稳，与子女缘分深厚，家庭凝聚力强，能享天伦之乐。');
-  }
-
-  const roleInDestiny = '日柱代表命主自身，是八字核心，反映性格、婚姻、健康及人生主线。';
-  
-  // 整合所有信息
-  const summaryParts = [
-    coreSymbolism, 
-    ...interactions, 
-    hiddenDynamics, 
-    naYinInfluence, 
-    lifeStageEffect, 
-    ...shenShaEffects
-  ].filter(Boolean);
-  
-  const integratedSummary = summaryParts.length ? `日柱综合：${summaryParts.join(' ')}` : '信息不足，暂无法深度解读。';
-
-  return { pillarName: '日柱', coreSymbolism, hiddenDynamics, naYinInfluence, lifeStageEffect, shenShaEffects, roleInDestiny, integratedSummary };
-};
-export const interpretMonthPillar = (chart: BaziChart): PillarInterpretation => {
-  const pillar = chart.pillars.month;
-  const gz = pillar.ganZhi;
-  const coreSymbolism = getGanSymbolism(gz.gan);
-  const naYinInfluence = getNaYinSymbolism(gz.naYin);
-  const roleInDestiny = '月柱为提纲，主青年运势、事业方向、兄弟姐妹及社会环境，是格局成败的关键。';
-  
-  let patternInsight = '';
-  if (chart.pattern.isEstablished) {
-    patternInsight = `此柱构成${chart.pattern.name}，${chart.pattern.description}。`;
-  } else if (chart.pattern.keyFactors.destructive.length > 0) {
-    patternInsight = `本可成${chart.pattern.name}，但因${chart.pattern.keyFactors.destructive.join('、')}而破格。`;
-  }
-
-  // 新增：月令对日主的支持分析
-  const dayMasterElement = chart.dayMasterElement; // e.g. '火'
-  const monthElement = gz.zhiElement; // e.g. '木'
-  const relation = getRelation(monthElement, dayMasterElement); // e.g. '生'
-  let supportText = '';
-  if (relation === '同' || relation === '生') {
-    supportText = '月令生助日主，得天时之利，根基稳固，利于承担责任与挑战。';
-  } else {
-    supportText = '月令克泄日主，属于失令，需靠自身努力或后天大运来补足能量。';
-  }
-
-  const lifeStageEffect = `月令处${gz.lifeStage}，${supportText}`;
-  const shenShaEffects = pillar.shenSha.map(s => `${s}：月柱见${s}，主青年时期相关影响`);
-  const integratedSummary = [`月柱${gz.gan}${gz.zhi}（${gz.naYin}）`, coreSymbolism, patternInsight, naYinInfluence, lifeStageEffect].filter(Boolean).join(' ');
-  return { pillarName: '月柱', coreSymbolism, hiddenDynamics: '', naYinInfluence, lifeStageEffect, shenShaEffects, roleInDestiny, integratedSummary };
-};
-
-export const interpretYearPillar = (chart: BaziChart): PillarInterpretation => {
-  const pillar = chart.pillars.year;
-  const gz = pillar.ganZhi;
-  const coreSymbolism = getGanSymbolism(gz.gan);
-  const naYinInfluence = getNaYinSymbolism(gz.naYin);
-  const roleInDestiny = '年柱代表祖业、父母、童年环境及社会背景，影响人生起点与根基。';
-  
-  // --- 🔥 核心修改开始 ---
-  
-  // 1. 获取年干的十神 (例如：七杀、正印)
-  const yearGanShiShen = gz.shiShenGan;
-
-  // 2. 调用“宫位+十神”精准断语函数
-  // 注意：必须确保 getPositionTenGodReading 函数已经在同文件中定义
-  const positionInsight = getPositionTenGodReading('年', yearGanShiShen);
-
-  // --- 🔥 核心修改结束 ---
-
-  const lifeStageEffect = `年柱处${gz.lifeStage}，反映家族气运传承。`;
-  
-  // 神煞处理 (保持原有逻辑)
-  const shenShaEffects = pillar.shenSha.map(s => `${s}：年柱见${s}，主祖上或早年影响`);
-
-  // 3. 整合进摘要 (加入 positionInsight)
-  const integratedSummary = [
-    `年柱${gz.gan}${gz.zhi}（${gz.naYin}）`, 
-    coreSymbolism, 
-    positionInsight, // 👈 这里是重点，精准断语显示在这里
-    naYinInfluence, 
-    lifeStageEffect
-  ].filter(Boolean).join(' ');
-
-  return { 
-    pillarName: '年柱', 
-    coreSymbolism, 
-    hiddenDynamics: '', 
-    naYinInfluence, 
-    lifeStageEffect, 
-    shenShaEffects, 
-    roleInDestiny, 
-    integratedSummary 
-  };
-};
-
-export const interpretHourPillar = (chart: BaziChart): PillarInterpretation => {
-  const pillar = chart.pillars.hour;
-  const gz = pillar.ganZhi;
-  const coreSymbolism = getGanSymbolism(gz.gan);
-  const naYinInfluence = getNaYinSymbolism(gz.naYin);
-  const roleInDestiny = '时柱代表子女、晚年运势、技术才能及最终成就，又称“归宿宫”。';
-  
-  // --- 🔥 核心修改开始 ---
-  
-  // 1. 获取时干的十神
-  const hourGanShiShen = gz.shiShenGan;
-
-  // 2. 调用“宫位+十神”精准断语函数
-  // 获取关于晚年运、子女缘分、下属关系的精准描述
-  const positionInsight = getPositionTenGodReading('时', hourGanShiShen);
-
-  // --- 🔥 核心修改结束 ---
-
-  const lifeStageEffect = `时柱处${gz.lifeStage}，预示晚年状态与成果。`;
-  
-  const shenShaEffects = pillar.shenSha.map(s => `${s}：时柱见${s}，主晚年或子女相关影响`);
-  
-  // 3. 整合进摘要 (加入 positionInsight)
-  const integratedSummary = [
-    `时柱${gz.gan}${gz.zhi}（${gz.naYin}）`, 
-    coreSymbolism, 
-    positionInsight, // 👈 重点：晚年与子女的精准断语显示在这里
-    naYinInfluence, 
-    lifeStageEffect
-  ].filter(Boolean).join(' ');
-
-  return { 
-    pillarName: '时柱', 
-    coreSymbolism, 
-    hiddenDynamics: '', 
-    naYinInfluence, 
-    lifeStageEffect, 
-    shenShaEffects, 
-    roleInDestiny, 
-    integratedSummary 
-  };
-};
-
-// --- New Interpretations for Luck and Annual Pillars ---
-
-export const interpretLuckPillar = (chart: BaziChart, luckGz: GanZhi): PillarInterpretation => {
-  const tenGod = luckGz.shiShenGan;
-  const element = luckGz.ganElement;
-  const isYongShen = chart.balance.yongShen.includes(element);
-  const isJiShen = chart.balance.jiShen.includes(element);
-  
-  let coreSymbolism = `大运天干${luckGz.gan}为${tenGod}，地支${luckGz.zhi}藏${luckGz.hiddenStems.map(h => h.stem).join('')}。`;
-  
-  let effect = '';
-  if (isYongShen) {
-    effect = `此运五行(${element})为喜用，大运${tenGod}主吉。运势顺遂，利于发展${tenGod}相关领域（如${getShiShenBrief(tenGod).split('、')[0]}）。`;
-  } else if (isJiShen) {
-    effect = `此运五行(${element})为忌神，大运${tenGod}压力较大。需防${tenGod}带来的负面影响（如${getShiShenBrief(tenGod).split('、')[1] || '波折'}）。`;
-  } else {
-    effect = `此运五行(${element})为闲神，运势平稳，吉凶视流年引动而定。`;
-  }
-
-  // 简单判断地支冲合
-  const dayZhi = chart.pillars.day.ganZhi.zhi;
-  let clashInfo = '';
-  if (BRANCH_CLASHES[luckGz.zhi] === dayZhi) {
-    clashInfo = `运支${luckGz.zhi}冲日支${dayZhi}，此十年家庭、感情或内心易有变动，奔波劳碌之象。`;
-  }
-
-  const roleInDestiny = '大运主管十年吉凶休咎，是人生的重要阶段背景。';
-  const integratedSummary = `${coreSymbolism} ${effect} ${clashInfo} 纳音为${luckGz.naYin}。`;
-
-  return {
-    pillarName: '大运',
-    coreSymbolism: getGanSymbolism(luckGz.gan),
-    hiddenDynamics: `地支主气为${luckGz.hiddenStems.find(h => h.type === '主气')?.shiShen || '杂气'}。`,
-    naYinInfluence: getNaYinSymbolism(luckGz.naYin),
-    lifeStageEffect: `大运处${luckGz.lifeStage}地，能量状态${['帝旺', '临官', '冠带', '长生'].includes(luckGz.lifeStage) ? '强旺' : '较弱'}。`,
-    shenShaEffects: [], // 大运神煞通常需结合流年看，此处暂留空或填基础神煞
-    roleInDestiny,
-    integratedSummary
-  };
-};
-
-export const interpretAnnualPillar = (chart: BaziChart, annualGz: GanZhi): PillarInterpretation => {
-  const tenGod = annualGz.shiShenGan; // 流年天干十神
-  const element = annualGz.ganElement; // 流年五行
-  const annualZhi = annualGz.zhi;      // 流年地支
-  const yearZhi = chart.pillars.year.ganZhi.zhi; // 年支（生肖）
-  const dayZhi = chart.pillars.day.ganZhi.zhi;   // 日支（夫妻宫）
-  
-  // 判断喜忌
-  const isYongShen = chart.balance.yongShen.includes(element);
-  const isJiShen = chart.balance.jiShen.includes(element);
-  
-  let coreSymbolism = `流年${annualGz.gan}${annualGz.zhi}，天干${tenGod}主事。`;
-  let actionableAdvice = ""; // 具体的行动建议
-
-  // ==========================================
-  // 🔥 1. 基于“十神”的精准行为建议
-  // ==========================================
-  switch (tenGod) {
-    case '比肩':
-    case '劫财':
-      if (isJiShen) {
-        actionableAdvice = "【切忌借贷与合伙】今年是“比劫夺财”之年，最大的风险来自于“人”。千万不要借钱给亲友，也不要轻易与人合伙投资，容易产生经济纠纷或被坑骗。职场上需防竞争对手背后使绊。";
-      } else {
-        actionableAdvice = "【利于合作】今年人缘不错，适合拓展人脉，与朋友合作求财。虽然开销可能会增加（请客吃饭），但属于“花钱买资源”，利大于弊。";
-      }
-      break;
-    case '食神':
-    case '伤官':
-      if (isJiShen) {
-        actionableAdvice = "【谨言慎行，防口舌】今年思维活跃但情绪易波动，切忌冲动。最大的禁忌是“怼领导”或“裸辞”，容易因口舌招惹是非。建议多做事少说话，把精力发泄在学习或创作上。";
-      } else {
-        actionableAdvice = "【才华变现，利创新】今年灵感爆棚，是展示才华、进修技能的好时机。如果从事创意、技术或口才行业，今年容易出成绩。可以尝试副业或新项目。";
-      }
-      break;
-    case '正财':
-    case '偏财':
-      if (isJiShen) {
-        actionableAdvice = "【稳健理财，忌贪婪】今年对钱财渴望加重，但财星为忌，容易“财来财去”。切忌高风险投机（如炒币、赌博），容易被套牢。建议强制储蓄，购买固定资产锁住财富。";
-      } else {
-        actionableAdvice = "【财运亨通，宜投资】今年财气较旺，是积累财富的好年份。正财运利于加薪，偏财运利于投资。如果有置业或理财计划，今年可以大胆推进。";
-      }
-      break;
-    case '正官':
-    case '七杀':
-      if (isJiShen) {
-        actionableAdvice = "【注意健康，防压力】今年压力较大，名为“官杀攻身”。切忌熬夜和高危运动，需特别注意身体健康和意外受伤。职场上可能会背黑锅或感到压抑，建议低调做人，以守为攻。";
-      } else {
-        actionableAdvice = "【事业晋升，掌权柄】今年事业运势强劲，利于升职加薪或考取公职。女命桃花较旺，利于婚恋。是打拼事业、确立地位的关键一年。";
-      }
-      break;
-    case '正印':
-    case '偏印':
-      if (isJiShen) {
-        actionableAdvice = "【防钻牛角尖】今年思维容易闭塞，或者感到孤独。切忌固执己见，也不要轻信偏门歪道。还要注意母亲或长辈的健康问题。";
-      } else {
-        actionableAdvice = "【利于考学与置业】今年贵人运强，利于考试、考证、买房或装修。遇到困难多向长辈或上司求助，容易获得实质性支持。";
-      }
-      break;
-    default:
-      actionableAdvice = "今年运势平稳，宜按部就班，积蓄力量。";
-  }
-
-  // ==========================================
-  // 🔥 2. 基于“地支冲合”的变动预警
-  // ==========================================
-  let interactionInfo = "";
-  
-  // 冲太岁 (冲年支)
-  if (BRANCH_CLASHES[annualZhi] === yearZhi) {
-    interactionInfo += "⚠️【冲太岁】流年冲动生肖（年支），今年生活环境或工作可能会有大变动，如搬家、跳槽或远行。需注意长辈健康及交通安全。";
-  }
-  // 冲夫妻宫 (冲日支)
-  else if (BRANCH_CLASHES[annualZhi] === dayZhi) {
-    interactionInfo += "💔【冲夫妻宫】流年冲动日支，感情生活容易出现波折。已婚者需防争吵或聚少离多，未婚者感情状态不稳定。此外，日支也代表自己的身体下半部，需防腰腿痛。";
-  }
-  // 伏吟 (值太岁)
-  else if (annualZhi === yearZhi) {
-    interactionInfo += "🛑【本命年】值太岁，运势容易两极分化。心情易郁闷纠结，建议多参加喜庆活动（一喜挡三灾），凡事求稳。";
-  }
-  // 合日支 (六合)
-  else if (BRANCH_COMBINATIONS[annualZhi] === dayZhi) {
-    interactionInfo += "❤️【天地鸳鸯合】流年地支与日支相合，今年人缘极佳，单身者极易遇到正缘，已婚者家庭和谐，是结婚或添丁的好年份。";
-  }
-
-  // ==========================================
-  // 🔥 3. 整合输出
-  // ==========================================
-  const integratedSummary = `
-    ${coreSymbolism}
-    
-    📌 建议：
-    ${actionableAdvice}
-    
-    ${interactionInfo ? "🌪️ 变数：\n" + interactionInfo : ""}
-    
-    (纳音：${annualGz.naYin}，${['帝旺','临官','冠带'].includes(annualGz.lifeStage)?'能量强旺':'能量平和'})
-  `.trim();
-
-  return {
-    pillarName: '流年',
-    coreSymbolism: getGanSymbolism(annualGz.gan),
-    hiddenDynamics: `地支藏干：${annualGz.hiddenStems.map(h => h.stem).join('')}`,
-    naYinInfluence: getNaYinSymbolism(annualGz.naYin),
-    lifeStageEffect: `流年行至${annualGz.lifeStage}地。`,
-    shenShaEffects: [], // 流年神煞通常结合大运看，此处暂略
-    roleInDestiny: '流年管一年之吉凶，是应期的关键。',
-    integratedSummary
-  };
-};
-
-// --- Core Service Functions ---
+// --- 4. 神煞计算函数 ---
 const calculateShenShaForPillar = (
   pillarType: 'year' | 'month' | 'day' | 'hour',
   gan: string,
@@ -613,118 +291,43 @@ const calculateShenShaForPillar = (
 ): string[] => {
   const shenSha: string[] = [];
 
-  // 天乙贵人
-  if (TIAN_YI_MAP[dayMaster]?.includes(zhi)) {
-    shenSha.push('天乙贵人');
-  }
-
-  // 文昌贵人
-  if (WEN_CHANG_MAP[dayMaster]?.includes(zhi)) {
-    shenSha.push('文昌贵人');
-  }
-
-  // 禄神
-  if (LU_SHEN_MAP[dayMaster] === zhi) {
-    shenSha.push('禄神');
-  }
-
-  // 羊刃（仅日干）
-  if (YANG_REN_MAP[dayMaster] === zhi && pillarType === 'day') {
-    shenSha.push('羊刃');
-  }
-
-  // 天德贵人
-  if (TIAN_DE_MAP[monthZhi] === gan) {
-    shenSha.push('天德贵人');
-  }
-
-  // 月德贵人
-  if (YUE_DE_MAP[monthZhi] === gan) {
-    shenSha.push('月德贵人');
-  }
-
-  // 金舆
-  if (JIN_YU_MAP[gan] === zhi) {
-    shenSha.push('金舆');
-  }
-
-  // 红艳
-  if (HONG_YAN_MAP[dayMaster] === zhi) {
-    shenSha.push('红艳');
-  }
-
-  // 血刃（需年支）
-  if (XUE_TANG_MAP[yearZhi] === zhi) {
-    shenSha.push('血刃');
-  }
-
-  // 词馆
-  if (CI_GUAN_MAP[gan] === zhi) {
-    shenSha.push('词馆');
-  }
-
-  // 天厨
-  if (TIAN_CHU_MAP[gan] === zhi) {
-    shenSha.push('天厨');
-  }
-
-  // 孤辰（年支决定）
-  if (GU_CHEN_MAP[yearZhi] === zhi) {
-    shenSha.push('孤辰');
-  }
-
-  // 寡宿（年支决定）
-  if (GUA_SU_MAP[yearZhi] === zhi) {
-    shenSha.push('寡宿');
-  }
-
-  // 红鸾（年支决定）
-  if (HONG_LUAN_MAP[yearZhi] === zhi) {
-    shenSha.push('红鸾');
-  }
-
-  // 劫煞（年支决定）
-  if (JIE_SHA_MAP[yearZhi] === zhi) {
-    shenSha.push('劫煞');
-  }
-
-  // 灾煞（年支决定）
-  if (ZAI_SHA_MAP[yearZhi] === zhi) {
-    shenSha.push('灾煞');
-  }
-
-  // 亡神（年支决定）
-  if (WANG_SHEN_MAP[yearZhi] === zhi) {
-    shenSha.push('亡神');
-  }
-
-  // 咸池（桃花）
-  if (XIAN_CHI_MAP[dayMaster] === zhi) {
-    shenSha.push('咸池（桃花）');
-  }
-
-  // 驿马（年/日支决定）
-  if (YI_MA_MAP[yearZhi] === zhi || YI_MA_MAP[dayMaster] === zhi) {
-    shenSha.push('驿马');
-  }
-
-  // 华盖
-  if (HUA_GAI_MAP[dayMaster] === zhi) {
-    shenSha.push('华盖');
-  }
-
-  // 将星
-  if (JIANG_XING_MAP[zhi]) {
-    shenSha.push('将星');
-  }
-
-  // 六秀（需查月支）
-  if (LIU_XIA_MAP[monthZhi]?.includes(zhi)) {
-    shenSha.push('六秀');
-  }
+  if (TIAN_YI_MAP[dayMaster]?.includes(zhi)) shenSha.push('天乙贵人');
+  if (WEN_CHANG_MAP[dayMaster]?.includes(zhi)) shenSha.push('文昌贵人');
+  if (LU_SHEN_MAP[dayMaster] === zhi) shenSha.push('禄神');
+  if (YANG_REN_MAP[dayMaster] === zhi && pillarType === 'day') shenSha.push('羊刃');
+  if (TIAN_DE_MAP[monthZhi] === gan) shenSha.push('天德贵人');
+  if (YUE_DE_MAP[monthZhi] === gan) shenSha.push('月德贵人');
+  if (JIN_YU_MAP[gan] === zhi) shenSha.push('金舆');
+  if (HONG_YAN_MAP[dayMaster] === zhi) shenSha.push('红艳');
+  if (XUE_TANG_MAP[yearZhi] === zhi) shenSha.push('血刃');
+  if (CI_GUAN_MAP[gan] === zhi) shenSha.push('词馆');
+  if (TIAN_CHU_MAP[gan] === zhi) shenSha.push('天厨');
+  if (GU_CHEN_MAP[yearZhi] === zhi) shenSha.push('孤辰');
+  if (GUA_SU_MAP[yearZhi] === zhi) shenSha.push('寡宿');
+  if (HONG_LUAN_MAP[yearZhi] === zhi) shenSha.push('红鸾');
+  if (JIE_SHA_MAP[yearZhi] === zhi) shenSha.push('劫煞');
+  if (ZAI_SHA_MAP[yearZhi] === zhi) shenSha.push('灾煞');
+  if (WANG_SHEN_MAP[yearZhi] === zhi) shenSha.push('亡神');
+  if (XIAN_CHI_MAP[dayMaster] === zhi) shenSha.push('咸池（桃花）');
+  if (YI_MA_MAP[yearZhi] === zhi || YI_MA_MAP[dayMaster] === zhi) shenSha.push('驿马');
+  if (HUA_GAI_MAP[dayMaster] === zhi) shenSha.push('华盖');
+  if (JIANG_XING_MAP[zhi]) shenSha.push('将星');
+  if (LIU_XIA_MAP[monthZhi]?.includes(zhi)) shenSha.push('六秀');
 
   return shenSha;
 };
+
+// 🔥 导出此函数供 App.tsx 使用
+export const getShenShaForDynamicPillar = (gan: string, zhi: string, chart: BaziChart): string[] => {
+  return calculateShenShaForPillar(
+    'year', gan, zhi, chart.dayMaster, 
+    chart.pillars.year.ganZhi.zhi, 
+    chart.pillars.month.ganZhi.zhi, 
+    chart.pillars.hour.ganZhi.zhi
+  );
+};
+
+// --- 5. 核心：排盘函数 ---
 export const calculateBazi = (profile: UserProfile): BaziChart => {
   const d = profile.birthDate.split('-').map(Number);
   const t = profile.birthTime.split(':').map(Number);
@@ -757,22 +360,18 @@ export const calculateBazi = (profile: UserProfile): BaziChart => {
 
   const pillars: any = {};
   const yearZhi = eightChar.getYearZhi();
-const monthZhi = eightChar.getMonthZhi();
-const dayZhi = eightChar.getDayZhi();
-const hourZhi = eightChar.getTimeZhi();
+  const monthZhi = eightChar.getMonthZhi();
+  const dayZhi = eightChar.getDayZhi();
+  const hourZhi = eightChar.getTimeZhi();
 
-Object.entries(pillarsRaw).forEach(([key, p]) => {
-  const type = key as 'year' | 'month' | 'day' | 'hour';
-  const gan = p.ganZhi.gan;
-  const zhi = p.ganZhi.zhi;
-  
-  const shenSha = calculateShenShaForPillar(
-    type, gan, zhi, dm, yearZhi, monthZhi, hourZhi
-  );
-  
-  const kw = dayKW.includes(zhi) || yearKW.includes(zhi);
-  pillars[key] = { ...p, shenSha, kongWang: kw };
-});
+  Object.entries(pillarsRaw).forEach(([key, p]) => {
+    const type = key as 'year' | 'month' | 'day' | 'hour';
+    const gan = p.ganZhi.gan;
+    const zhi = p.ganZhi.zhi;
+    const shenSha = calculateShenShaForPillar(type, gan, zhi, dm, yearZhi, monthZhi, hourZhi);
+    const kw = dayKW.includes(zhi) || yearKW.includes(zhi);
+    pillars[key] = { ...p, shenSha, kongWang: kw };
+  });
 
   const counts: Record<string, number> = { '金': 0, '木': 0, '水': 0, '火': 0, '土': 0 };
   Object.values(pillars).forEach((p: any) => { counts[p.ganZhi.ganElement]++; counts[p.ganZhi.zhiElement]++; });
@@ -817,62 +416,8 @@ export const getGanZhiForYear = (year: number, dayMaster: string): GanZhi => {
   const bazi = Solar.fromYmdHms(year, 6, 1, 12, 0, 0).getLunar().getEightChar();
   return createGanZhi(bazi.getYearGan(), bazi.getYearZhi(), getStemIndex(dayMaster));
 };
-// 根据 宫位 和 十神 获取精准断语 (完整版)
-const getPositionTenGodReading = (pillar: '年' | '月' | '日' | '时', tenGod: string): string => {
-  const readings: Record<string, Record<string, string>> = {
-    '年': { // 年柱：祖上、父母、早年（0-16岁）
-      '比肩': '【年干比肩】出身一般，早年家境可能拮据，上有兄姐或为养子，与父亲缘分稍淡。',
-      '劫财': '【年干劫财】祖业耗散，早年家境贫寒，父亲可能早衰或离家发展，早年生活波动大。',
-      '食神': '【年干食神】祖上富裕或父母慈祥，早年平安福气，这种人一般很难吃苦，童年幸福。',
-      '伤官': '【年干伤官】祖业飘零，或者父母缘分薄，小时候容易受伤或过继他人，早年内心叛逆。',
-      '正财': '【年干正财】出身富贵或书香门第，也是长子长孙的象征，早年物质优渥，得祖辈疼爱。',
-      '偏财': '【年干偏财】必生于商贾之家或父亲能干，若是独子，早年即能继承家业，有些早恋倾向。',
-      '正官': '【年干正官】世代书香或父母有公职，学业优秀，从小就是“别人家的孩子”，家教甚严。',
-      '七杀': '【年干七杀】出身寒微，或者小时候身体不好、多灾多难，父母管教极严，早年压力大。',
-      '正印': '【年干正印】母亲掌权或出身书香，非常有面子，学业顺遂，也是长子之象。',
-      '偏印': '【年干偏印】可能是庶出，或者小时候由继母、祖辈带大，家境变迁大，性格较为孤僻。'
-    },
-    '月': { // 月柱：兄弟、朋友、青年、事业雏形（16-32岁）
-      '比肩': '【月干比肩】兄弟姐妹多或朋友多，性格独立，好胜心强，30岁前钱财难聚。',
-      '劫财': '【月干劫财】容易被朋友拖累破财，性格冲动，感情容易被横刀夺爱，合作需谨慎。',
-      '食神': '【月干食神】心宽体胖，人缘极佳，适合从事服务、艺术行业，青年时期运势平顺。',
-      '伤官': '【月干伤官】才华横溢但恃才傲物，容易频繁跳槽或创业，青年时期变动极大，不喜受管束。',
-      '正财': '【月干正财】勤俭持家，做事保守，青年时期就能有稳定收入，适合上班族。',
-      '偏财': '【月干偏财】为人豪爽，轻财重义，青年时期容易赚快钱也容易花光，不甘于死工资。',
-      '正官': '【月干正官】也是“正气官星”，为人正直，青年时期易得长辈提拔，有官运或管理才能。',
-      '七杀': '【月干七杀】青年时期压力巨大，或者出身贫寒靠自己打拼，有魄力但脾气暴躁。',
-      '正印': '【月干正印】仁慈宽厚，但依赖心重，青年时期贵人运强，适合从事文职或教育。',
-      '偏印': '【月干偏印】思维独特，有一技之长，但青年时期容易感到孤独，适合钻研冷门技术。'
-    },
-    '日': { // 日支（注意：这里输入的是日支藏干的主气十神）：配偶、中年（32-48岁）
-      '比肩': '【日坐比肩】配偶性格刚毅，与你互不相让，夫妻关系像朋友也像竞争对手，易有口角。',
-      '劫财': '【日坐劫财】配偶奢侈浪费或身体不佳，婚姻易有第三者介入，或者因配偶破财。',
-      '食神': '【日坐食神】配偶温和体贴，有福气且身材丰满，婚姻生活和谐，你能得配偶照顾。',
-      '伤官': '【日坐伤官】配偶才华高但嘴巴毒，容易看不起你，婚姻多争吵，女命尤忌（克夫）。',
-      '正财': '【日坐正财】配偶勤俭持家，是标准的贤内助（或好丈夫），婚姻稳定，重视经济基础。',
-      '偏财': '【日坐偏财】配偶精明能干，慷慨大方，但可能桃花较旺，或者配偶比你有钱。',
-      '正官': '【日坐正官】配偶相貌端庄，为人正直，家庭责任感强，你在家里地位较高。',
-      '七杀': '【日坐七杀】配偶性格暴躁，对你管束极严，或者配偶身体不好，婚姻压力较大。',
-      '正印': '【日坐正印】配偶仁慈，像长辈一样照顾你，虽然缺乏浪漫，但给你极大的安全感。',
-      '偏印': '【日坐偏印】配偶性格古怪，不易沟通，两人虽然在一起但内心有距离感，易晚婚。'
-    },
-    '时': { // 时柱：子女、晚年、下属（48岁以后）
-      '比肩': '【时干比肩】晚年如果不存钱，容易被子女或朋友分光家产，也代表与子女像朋友，无代沟。',
-      '劫财': '【时干劫财】晚年破财之象，或者子女挥霍，也就是俗称的“败家子”风险，晚景需防穷困。',
-      '食神': '【时干食神】晚年享福，子女孝顺且肥胖（有福气），长寿之象，晚年不愁吃穿。',
-      '伤官': '【时干伤官】子女才华横溢但叛逆难管，或者晚年依然奔波，闲不住，易惹是非。',
-      '正财': '【时干正财】子女勤俭持家，晚年经济独立，无需担忧养老金，也是老来富之象。',
-      '偏财': '【时干偏财】老来富，或者晚年还有意外之财（如拆迁、投资获利），子女经商能干。',
-      '正官': '【时干正官】子女敦厚正直，晚年有名望，甚至子女能当官光耀门楣，晚年受人尊敬。',
-      '七杀': '【时干七杀】子女虽有出息但性情暴躁，或者晚年身体多病痛，压力大，子女不在身边。',
-      '正印': '【时干正印】晚年受人尊敬，思想精神富足，子女孝顺贴心，适合修身养性。',
-      '偏印': '【时干偏印】晚年孤独，或者沉迷宗教玄学，与子女缘分较淡，适合独处。'
-    }
-  };
 
-  // 对于日柱，输入的 tenGod 应该是日支的主气十神，而不是日干（日干是自己）
-  return readings[pillar]?.[tenGod] || '';
-};
+// --- 🔥 修复：找回丢失的 calculateAnnualFortune 函数 ---
 export const calculateAnnualFortune = (chart: BaziChart, year: number): AnnualFortune => {
   const annualGz = getGanZhiForYear(year, chart.dayMaster);
   const reasons: string[] = [];
@@ -932,5 +477,272 @@ export const calculateAnnualFortune = (chart: BaziChart, year: number): AnnualFo
   return { year, ganZhi: annualGz, rating, reasons, score };
 };
 
+// --- 6. 解读函数 (Interpretations) ---
+
+export const interpretYearPillar = (chart: BaziChart): PillarInterpretation => {
+  const pillar = chart.pillars.year;
+  const gz = pillar.ganZhi;
+  const coreSymbolism = getGanSymbolism(gz.gan);
+  const naYinInfluence = getNaYinSymbolism(gz.naYin);
+  const roleInDestiny = '年柱代表祖业、父母、童年环境及社会背景，影响人生起点与根基。';
+  
+  const positionInsight = getPositionTenGodReading('年', gz.shiShenGan);
+  const lifeStageEffect = `年柱处${gz.lifeStage}，反映家族气运传承。`;
+  const shenShaEffects = pillar.shenSha.map(s => `${s}：年柱见${s}，主祖上或早年影响`);
+
+  const integratedSummary = [`年柱${gz.gan}${gz.zhi}（${gz.naYin}）`, coreSymbolism, positionInsight, naYinInfluence, lifeStageEffect].filter(Boolean).join(' ');
+  return { pillarName: '年柱', coreSymbolism, hiddenDynamics: '', naYinInfluence, lifeStageEffect, shenShaEffects, roleInDestiny, integratedSummary };
+};
+
+export const interpretMonthPillar = (chart: BaziChart): PillarInterpretation => {
+  const pillar = chart.pillars.month;
+  const gz = pillar.ganZhi;
+  const coreSymbolism = getGanSymbolism(gz.gan);
+  const naYinInfluence = getNaYinSymbolism(gz.naYin);
+  const roleInDestiny = '月柱为提纲，主青年运势、事业方向、兄弟姐妹及社会环境，是格局成败的关键。';
+  
+  let patternInsight = '';
+  if (chart.pattern.isEstablished) {
+    patternInsight = `此柱构成${chart.pattern.name}，${chart.pattern.description}。`;
+  } else if (chart.pattern.keyFactors.destructive.length > 0) {
+    patternInsight = `本可成${chart.pattern.name}，但因${chart.pattern.keyFactors.destructive.join('、')}而破格。`;
+  }
+
+  const positionInsight = getPositionTenGodReading('月', gz.shiShenGan);
+  const lifeStageEffect = `月令处${gz.lifeStage}，主导全局五行旺衰。`;
+  const shenShaEffects = pillar.shenSha.map(s => `${s}：月柱见${s}，主青年时期相关影响`);
+  
+  const integratedSummary = [`月柱${gz.gan}${gz.zhi}（${gz.naYin}）`, coreSymbolism, patternInsight, positionInsight, naYinInfluence, lifeStageEffect].filter(Boolean).join(' ');
+  return { pillarName: '月柱', coreSymbolism, hiddenDynamics: '', naYinInfluence, lifeStageEffect, shenShaEffects, roleInDestiny, integratedSummary };
+};
+
+export const interpretDayPillar = (chart: BaziChart): PillarInterpretation => {
+  const pillar = chart.pillars.day;
+  const gz = pillar.ganZhi;
+  const revealedStems = [chart.pillars.year.ganZhi.gan, chart.pillars.month.ganZhi.gan, chart.pillars.hour.ganZhi.gan];
+  const coreSymbolism = getGanSymbolism(gz.gan);
+  
+  let hiddenDynamics = '';
+  const significantHiddens = gz.hiddenStems.filter(h => isSignificantHidden(h, revealedStems));
+  if (significantHiddens.length > 0) {
+    const parts = significantHiddens.map(h => `${h.stem}（${h.shiShen}，${getShiShenBrief(h.shiShen)}）`);
+    hiddenDynamics = `地支藏干 ${parts.join('；')}，深刻影响内在性格与潜能。`;
+  }
+  
+  const naYinInfluence = getNaYinSymbolism(gz.naYin);
+  let lifeStageEffect = '';
+  if (gz.lifeStage) {
+    const baseDesc = gz.lifeStage;
+    if (['死', '绝', '病'].includes(gz.lifeStage) && chart.balance.dayMasterStrength.level === '身弱') {
+      lifeStageEffect = `日主处${baseDesc}地且身弱，能量内敛，需防行动力不足或思虑过重。`;
+    } else {
+      lifeStageEffect = `日主处${baseDesc}地，此为蓄势待发之象，非衰绝之兆。`;
+    }
+  }
+
+  const descMap: Record<string, string> = {
+    '天乙贵人': '一生多逢凶化吉，易得长辈或上级提携，遇难成祥',
+    '文昌贵人': '气质文雅，聪明好学，利于求学、考试及从事文职工作',
+    '禄神': '财官双美，一生衣食无忧，有创业或理财天赋',
+    '天德贵人': '品行端正，仁慈重义，能化解凶煞，保平安',
+    '月德贵人': '人缘极佳，遇事能逢凶化吉，福泽深厚',
+    '金舆': '福气之象，出入有车，配偶条件较好，生活富足',
+    '将星': '有组织领导才能，处事果断，在职场或群体中易掌权',
+    '红艳': '异性缘极佳，且生性多情，艺术天分高，但需防感情风波',
+    '咸池': '又名桃花，情感丰富，注重情调，易陷感情纠葛',
+    '咸池（桃花）': '情感丰富，异性缘好，需防烂桃花干扰',
+    '红鸾': '性情温和，异性缘佳，早年利婚恋，晚年利添丁',
+    '羊刃': '性格刚毅，进取心强，但易冲动好胜，需防意外刑伤',
+    '劫煞': '行事偏激，性格刚烈，易遭突发挫折或破财，宜修身养性',
+    '灾煞': '需防意外血光、病痛或官非，行事宜低调谨慎',
+    '亡神': '城府较深，喜怒不形于色，若无吉星引导易走极端',
+    '华盖': '聪慧孤高，喜好艺术、哲学或玄学，内心世界丰富',
+    '驿马': '生性好动，向往自由，适合奔波、外勤或远方求财',
+    '孤辰': '性格略显孤僻，精神独立，六亲缘分稍淡',
+    '寡宿': '内心常感孤独，不喜社交，晚年较为空寂',
+    '血刃': '主身体易受损伤，或与手术、血液有关，需注意安全'
+  };
+  const shenShaEffects = pillar.shenSha.map(star => {
+    const cleanName = star.replace(/（.*）|\(.*\)/, '');
+    const desc = descMap[star] || descMap[cleanName] || '带来特殊机遇或挑战';
+    return `${star}：${desc}`;
+  });
+
+  const dayZhi = gz.zhi;
+  const monthZhi = chart.pillars.month.ganZhi.zhi;
+  const hourZhi = chart.pillars.hour.ganZhi.zhi;
+  const interactions: string[] = [];
+
+  if (BRANCH_CLASHES[dayZhi] === monthZhi) interactions.push('【月日相冲】日支与月令相冲，寓意可能较早离家，或30岁前后人生有重大转折。');
+  else if (BRANCH_COMBINATIONS[dayZhi] === monthZhi) interactions.push('【月日六合】日支与月令相合，代表与长辈上司关系融洽。');
+  else if (dayZhi === monthZhi) interactions.push('【月日伏吟】日支与月令相同，易内心纠结，做事反复。');
+
+  if (BRANCH_CLASHES[dayZhi] === hourZhi) interactions.push('【日时相冲】日支冲时支，中晚年可能较忙碌变动，或子女不在身边。');
+  else if (BRANCH_COMBINATIONS[dayZhi] === hourZhi) interactions.push('【日时六合】日支合时支，晚年生活安稳，子女缘分深厚。');
+
+  const mainHiddenStem = gz.hiddenStems.find(h => h.type === '主气');
+  const dayZhiTenGod = mainHiddenStem ? mainHiddenStem.shiShen : '';
+  const positionInsight = getPositionTenGodReading('日', dayZhiTenGod);
+
+  const roleInDestiny = '日柱代表命主自身，是八字核心，反映性格、婚姻、健康及人生主线。';
+  
+  const summaryParts = [coreSymbolism, positionInsight, ...interactions, hiddenDynamics, naYinInfluence, lifeStageEffect, ...shenShaEffects].filter(Boolean);
+  const integratedSummary = summaryParts.length ? `日柱综合：${summaryParts.join(' ')}` : '信息不足，暂无法深度解读。';
+
+  return { pillarName: '日柱', coreSymbolism, hiddenDynamics, naYinInfluence, lifeStageEffect, shenShaEffects, roleInDestiny, integratedSummary };
+};
+
+export const interpretHourPillar = (chart: BaziChart): PillarInterpretation => {
+  const pillar = chart.pillars.hour;
+  const gz = pillar.ganZhi;
+  const coreSymbolism = getGanSymbolism(gz.gan);
+  const naYinInfluence = getNaYinSymbolism(gz.naYin);
+  const roleInDestiny = '时柱代表子女、晚年运势、技术才能及最终成就，又称“归宿宫”。';
+  
+  const positionInsight = getPositionTenGodReading('时', gz.shiShenGan);
+  const lifeStageEffect = `时柱处${gz.lifeStage}，预示晚年状态与成果。`;
+  const shenShaEffects = pillar.shenSha.map(s => `${s}：时柱见${s}，主晚年或子女相关影响`);
+  
+  const integratedSummary = [`时柱${gz.gan}${gz.zhi}（${gz.naYin}）`, coreSymbolism, positionInsight, naYinInfluence, lifeStageEffect].filter(Boolean).join(' ');
+  return { pillarName: '时柱', coreSymbolism, hiddenDynamics: '', naYinInfluence, lifeStageEffect, shenShaEffects, roleInDestiny, integratedSummary };
+};
+
+export const interpretLuckPillar = (chart: BaziChart, luckGz: GanZhi): PillarInterpretation => {
+  const tenGod = luckGz.shiShenGan;
+  const element = luckGz.ganElement;
+  const isYongShen = chart.balance.yongShen.includes(element);
+  const isJiShen = chart.balance.jiShen.includes(element);
+  
+  let coreSymbolism = `大运天干${luckGz.gan}为${tenGod}，地支${luckGz.zhi}藏${luckGz.hiddenStems.map(h => h.stem).join('')}。`;
+  let effect = isYongShen ? `此运五行(${element})为喜用，大运${tenGod}主吉。` : isJiShen ? `此运五行(${element})为忌神，大运${tenGod}压力较大。` : `此运五行(${element})为闲神，运势平稳。`;
+
+  const dayZhi = chart.pillars.day.ganZhi.zhi;
+  let clashInfo = '';
+  if (BRANCH_CLASHES[luckGz.zhi] === dayZhi) clashInfo = `运支${luckGz.zhi}冲日支${dayZhi}，此十年家庭、感情或内心易有变动，奔波劳碌之象。`;
+
+  // 🔥 计算神煞
+  const shenShaList = getShenShaForDynamicPillar(luckGz.gan, luckGz.zhi, chart);
+  const shenShaEffects = shenShaList.map(s => `${s}：大运逢之，主${s.includes('贵人') ? '遇难成祥' : '变动'}`);
+
+  const roleInDestiny = '大运主管十年吉凶休咎，是人生的重要阶段背景。';
+  const integratedSummary = `${coreSymbolism} ${effect} ${clashInfo} ${shenShaList.length > 0 ? '\n🌟 神煞：'+shenShaList.join('、') : ''} (纳音：${luckGz.naYin})`;
+
+  return { pillarName: '大运', coreSymbolism, hiddenDynamics: '', naYinInfluence: getNaYinSymbolism(luckGz.naYin), lifeStageEffect: `大运处${luckGz.lifeStage}地。`, shenShaEffects, roleInDestiny, integratedSummary };
+};
+
+export const interpretAnnualPillar = (chart: BaziChart, annualGz: GanZhi): PillarInterpretation => {
+  const tenGod = annualGz.shiShenGan;
+  const element = annualGz.ganElement;
+  const annualZhi = annualGz.zhi;
+  const annualGan = annualGz.gan;
+  
+  // 1. 基础喜忌判断
+  const isYongShen = chart.balance.yongShen.includes(element);
+  const isJiShen = chart.balance.jiShen.includes(element);
+  
+  let coreSymbolism = `流年${annualGz.gan}${annualGz.zhi}，天干${tenGod}主事。`;
+  
+  // 2. 大师建议 (十神流年法 - 保持原有的精髓)
+  let actionableAdvice = "";
+  switch (tenGod) {
+    case '比肩': case '劫财': actionableAdvice = isJiShen ? "【切忌借贷与合伙】今年是“比劫夺财”之年，最大的风险来自于“人”。千万不要借钱给亲友，也不要轻易与人合伙投资，容易产生经济纠纷或被坑骗。职场上需防竞争对手背后使绊。" : "【利于合作】今年人缘不错，适合拓展人脉，与朋友合作求财。虽然开销可能会增加（请客吃饭），但属于“花钱买资源”，利大于弊。"; break;
+    case '食神': case '伤官': actionableAdvice = isJiShen ? "【谨言慎行，防口舌】今年思维活跃但情绪易波动，切忌冲动。最大的禁忌是“怼领导”或“裸辞”，容易因口舌招惹是非。建议多做事少说话，把精力发泄在学习或创作上。" : "【才华变现，利创新】今年灵感爆棚，是展示才华、进修技能的好时机。如果从事创意、技术或口才行业，今年容易出成绩。可以尝试副业或新项目。"; break;
+    case '正财': case '偏财': actionableAdvice = isJiShen ? "【稳健理财，忌贪婪】今年对钱财渴望加重，但财星为忌，容易“财来财去”。切忌高风险投机（如炒币、赌博），容易被套牢。建议强制储蓄，购买固定资产锁住财富。" : "【财运亨通，宜投资】今年财气较旺，是积累财富的好年份。正财运利于加薪，偏财运利于投资。如果有置业或理财计划，今年可以大胆推进。"; break;
+    case '正官': case '七杀': actionableAdvice = isJiShen ? "【注意健康，防压力】今年压力较大，名为“官杀攻身”。切忌熬夜和高危运动，需特别注意身体健康和意外受伤。职场上可能会背黑锅或感到压抑，建议低调做人，以守为攻。" : "【事业晋升，掌权柄】今年事业运势强劲，利于升职加薪或考取公职。女命桃花较旺，利于婚恋。是打拼事业、确立地位的关键一年。"; break;
+    case '正印': case '偏印': actionableAdvice = isJiShen ? "【防钻牛角尖】今年思维容易闭塞，或者感到孤独。切忌固执己见，也不要轻信偏门歪道。还要注意母亲或长辈的健康问题。" : "【利于考学与置业】今年贵人运强，利于考试、考证、买房或装修。遇到困难多向长辈或上司求助，容易获得实质性支持。"; break;
+    default: actionableAdvice = isYongShen ? "流年大吉，诸事顺遂。" : "流年运势需谨慎，宜按部就班。";
+  }
+
+  // ==========================================
+  // 🔥 3. 核心升级：全盘引动雷达 (Scanning)
+  // ==========================================
+  const triggers: string[] = [];
+  const pillars = {
+    '年': chart.pillars.year,
+    '月': chart.pillars.month,
+    '日': chart.pillars.day,
+    '时': chart.pillars.hour
+  };
+
+  // 定义天干克 (用于计算天克地冲)
+  const isGanClash = (g1: string, g2: string) => {
+    const map: Record<string, string> = {'甲':'戊','乙':'己','丙':'庚','丁':'辛','戊':'壬','己':'癸','庚':'甲','辛':'乙','壬':'丙','癸':'丁'};
+    return map[g1] === g2 || map[g2] === g1;
+  };
+
+  // 扫描每一柱
+  Object.entries(pillars).forEach(([name, p]) => {
+    const pZhi = p.ganZhi.zhi;
+    const pGan = p.ganZhi.gan;
+    const pName = name + '柱';
+
+    // 1. 天克地冲 (最重之动)
+    if (isGanClash(annualGan, pGan) && BRANCH_CLASHES[annualZhi] === pZhi) {
+      triggers.push(`🌪️ 【天克地冲·${pName}】：流年与${pName}天克地冲，这是极大的变动信号。${
+        name === '年' ? '需重点关注家中长辈健康，或有远行搬迁。' :
+        name === '月' ? '事业环境或家庭门户恐有剧烈变动，防父母不安。' :
+        name === '日' ? '夫妻宫受冲击严重，需防婚变或自身病痛，凡事忍让。' :
+        '子女宫受冲，需防子女意外或下属背叛，晚运不稳。'
+      }`);
+    }
+    // 2. 六冲 (次重之动)
+    else if (BRANCH_CLASHES[annualZhi] === pZhi) {
+      triggers.push(`💥 【冲·${pName}】：流年冲动${pName}。${
+        name === '年' ? '主离家在外，奔波劳碌，或长辈有恙。' :
+        name === '月' ? '提纲被冲，十有九动。工作、居住环境或人际圈子易变。' :
+        name === '日' ? '夫妻宫逢冲，感情易生口角波折，或身体腰腹不适。' :
+        '子女宫逢冲，为子女操心忙碌，或想法多变难以落地。'
+      }`);
+    }
+    // 3. 伏吟 (重叠)
+    else if (annualZhi === pZhi) {
+      triggers.push(`🛑 【伏吟·${pName}】：流年地支与${pName}相同。${
+        name === '日' ? '所谓“反吟伏吟，泣哭淋淋”，日支伏吟常主内心纠结、进退两难，或伴侣身体违和。' : 
+        '能量重叠，该柱代表的人事物容易出现停滞或重复的困扰。'
+      }`);
+    }
+    // 4. 六合 (和谐)
+    else if (BRANCH_COMBINATIONS[annualZhi] === pZhi) {
+      triggers.push(`❤️ 【合·${pName}】：流年与${pName}六合。${
+        name === '日' ? '天地鸳鸯合，利于婚恋嫁娶，人际关系和谐。' :
+        name === '月' ? '利于合作，得长辈或上司提携，工作环境稳固。' :
+        '多得贵人助力，人缘佳。'
+      }`);
+    }
+  });
+
+  // ==========================================
+  // 🔥 4. 流年神煞计算
+  // ==========================================
+  const shenShaList = getShenShaForDynamicPillar(annualGz.gan, annualGz.zhi, chart);
+  
+  // ==========================================
+  // 🔥 5. 整合输出
+  // ==========================================
+  const integratedSummary = `
+    ${coreSymbolism}
+    
+    📌 建议：
+    ${actionableAdvice}
+    
+    ${triggers.length > 0 ? triggers.join('\n\n') : "🌊 运势：\n流年与原局无显著冲合，也就是所谓的“平运”。平运即是好运，宜按部就班，积蓄力量。"}
+    
+    ${shenShaList.length > 0 ? "\n🌟 流年神煞：\n" + shenShaList.join('、') : ""}
+    
+    (纳音：${annualGz.naYin})
+  `.trim();
+
+  return {
+    pillarName: '流年',
+    coreSymbolism: getGanSymbolism(annualGz.gan),
+    hiddenDynamics: `地支藏干：${annualGz.hiddenStems.map(h => h.stem).join('')}`,
+    naYinInfluence: getNaYinSymbolism(annualGz.naYin),
+    lifeStageEffect: `流年行至${annualGz.lifeStage}地。`,
+    shenShaEffects: shenShaList.map(s => `${s}：流年逢之`), 
+    roleInDestiny: '流年管一年之吉凶，是应期的关键。',
+    integratedSummary
+  };
+};
+// 7. 导出空函数（兼容性）
 export const calculateAnnualTrend = (chart: BaziChart, year: number): TrendActivation[] => [];
 export const getAdvancedInterpretation = (chart: BaziChart, data: ModalData): InterpretationResult[] => [];
