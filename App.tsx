@@ -466,6 +466,7 @@ const HomeView: React.FC<{ onGenerate: (profile: UserProfile, subTab?: ChartSubT
   const [province, setProvince] = useState('');
   const [city, setCity] = useState('');
   const [longitude, setLongitude] = useState<number | undefined>(undefined);
+  
   const datePickerRef = useRef<HTMLInputElement>(null);
 
   // Handle Province Change
@@ -1587,7 +1588,7 @@ const App: React.FC = () => {
   const getTitle = () => {
       switch (currentTab) {
           case AppTab.HOME: return '玄枢命理';
-          case AppTab.CHART: return currentProfile ? `${currentProfile.name}的命盘` : '命盘推演';
+          case AppTab.CHART: return currentProfile ? `${currentProfile.name}命盘` : '命盘推演';
           case AppTab.TIPS: return '命理提示';
           case AppTab.ARCHIVE: return '档案管理';
           default: return '玄枢命理';
