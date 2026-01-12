@@ -1,4 +1,3 @@
-
 import { BaziChart, GanZhi, LuckPillar, Pillar, UserProfile, HiddenStem, GodStrength, TrendActivation, ShenShaInteraction, BalanceAnalysis, AnnualFortune, PatternAnalysis, InterpretationResult, ModalData, XiaoYun, PillarInterpretation } from '../types';
 import { Solar, Lunar } from 'lunar-javascript';
 import { 
@@ -236,29 +235,15 @@ export const interpretDayPillar = (chart: BaziChart): PillarInterpretation => {
     }
   }
   const descMap: Record<string, string> = {
-  '天乙贵人': '一生多逢凶化吉，得长辈或异性贵人助',
-  '文昌贵人': '聪明好学，利考试、文职、艺术',
-  '禄神': '自我实现力强，衣食无忧',
-  '羊刃': '精力旺盛，但易冲动争斗（女命不利婚姻）',
-  '红鸾': '异性缘佳，感情活跃',
-  '华盖': '艺术玄学天赋，略带孤高',
-  '驿马': '主变动、远行、奔波求财',
-  '孤辰': '内心孤独，喜独处思考',
-  '天德贵人': '逢凶化吉，得贵人扶持，平安顺利',
-  '月德贵人': '得人庇护，行事顺利，化解灾厄',
-  '金舆': '有车马之象，利于出行，或有交通工具相关的机遇',
-  '红艳': '桃花运强，异性缘佳，但也可能带来感情纠纷',
-  '血刃': '主刀伤、血光之灾，或与血液、手术有关的事件',
-  '词馆': '利于文书、学术、文化事务，有文才表现机会',
-  '天厨': '饮食丰盛，有美食之福，或从事餐饮相关行业',
-  '寡宿': '性格孤僻，不善交际，或配偶缘分较浅',
-  '劫煞': '主有劫财、破财之象，或遭遇意外损失',
-  '灾煞': '主有灾难、意外、病患之忧',
-  '亡神': '主有丧事、失落、精神恍惚之象',
-  '咸池（桃花）': '桃花运强，异性缘佳，但也可能引发感情纠葛或不正当关系',
-  '将星': '有领导才能，适合从军或管理职位',
-  '六秀': '主才华横溢，有艺术天赋，或得名师指点'
-};
+    '天乙贵人': '一生多逢凶化吉，得长辈或异性贵人助',
+    '文昌贵人': '聪明好学，利考试、文职、艺术',
+    '禄神': '自我实现力强，衣食无忧',
+    '羊刃': '精力旺盛，但易冲动争斗（女命不利婚姻）',
+    '红鸾': '异性缘佳，感情活跃',
+    '华盖': '艺术玄学天赋，略带孤高',
+    '驿马': '主变动、远行、奔波求财',
+    '孤辰': '内心孤独，喜独处思考'
+  };
   const shenShaEffects = pillar.shenSha.map(star => `${star}：${descMap[star] || '带来特殊机遇或挑战'}`);
   const roleInDestiny = '日柱代表命主自身，是八字核心，反映性格、婚姻、健康及人生主线。';
   const summaryParts = [coreSymbolism, hiddenDynamics, naYinInfluence, lifeStageEffect, ...shenShaEffects].filter(Boolean);
@@ -323,6 +308,81 @@ export const interpretHourPillar = (chart: BaziChart): PillarInterpretation => {
   const shenShaEffects = pillar.shenSha.map(s => `${s}：时柱见${s}，主晚年或子女相关影响`);
   const integratedSummary = [`时柱${gz.gan}${gz.zhi}（${gz.naYin}）`, coreSymbolism, childrenInsight, naYinInfluence, lifeStageEffect].filter(Boolean).join(' ');
   return { pillarName: '时柱', coreSymbolism, hiddenDynamics: '', naYinInfluence, lifeStageEffect, shenShaEffects, roleInDestiny, integratedSummary };
+};
+
+// --- New Interpretations for Luck and Annual Pillars ---
+
+export const interpretLuckPillar = (chart: BaziChart, luckGz: GanZhi): PillarInterpretation => {
+  const tenGod = luckGz.shiShenGan;
+  const element = luckGz.ganElement;
+  const isYongShen = chart.balance.yongShen.includes(element);
+  const isJiShen = chart.balance.jiShen.includes(element);
+  
+  let coreSymbolism = `大运天干${luckGz.gan}为${tenGod}，地支${luckGz.zhi}藏${luckGz.hiddenStems.map(h => h.stem).join('')}。`;
+  
+  let effect = '';
+  if (isYongShen) {
+    effect = `此运五行(${element})为喜用，大运${tenGod}主吉。运势顺遂，利于发展${tenGod}相关领域（如${getShiShenBrief(tenGod).split('、')[0]}）。`;
+  } else if (isJiShen) {
+    effect = `此运五行(${element})为忌神，大运${tenGod}压力较大。需防${tenGod}带来的负面影响（如${getShiShenBrief(tenGod).split('、')[1] || '波折'}）。`;
+  } else {
+    effect = `此运五行(${element})为闲神，运势平稳，吉凶视流年引动而定。`;
+  }
+
+  // 简单判断地支冲合
+  const dayZhi = chart.pillars.day.ganZhi.zhi;
+  let clashInfo = '';
+  if (BRANCH_CLASHES[luckGz.zhi] === dayZhi) {
+    clashInfo = `运支${luckGz.zhi}冲日支${dayZhi}，此十年家庭、感情或内心易有变动，奔波劳碌之象。`;
+  }
+
+  const roleInDestiny = '大运主管十年吉凶休咎，是人生的重要阶段背景。';
+  const integratedSummary = `${coreSymbolism} ${effect} ${clashInfo} 纳音为${luckGz.naYin}。`;
+
+  return {
+    pillarName: '大运',
+    coreSymbolism: getGanSymbolism(luckGz.gan),
+    hiddenDynamics: `地支主气为${luckGz.hiddenStems.find(h => h.type === '主气')?.shiShen || '杂气'}。`,
+    naYinInfluence: getNaYinSymbolism(luckGz.naYin),
+    lifeStageEffect: `大运处${luckGz.lifeStage}地，能量状态${['帝旺', '临官', '冠带', '长生'].includes(luckGz.lifeStage) ? '强旺' : '较弱'}。`,
+    shenShaEffects: [], // 大运神煞通常需结合流年看，此处暂留空或填基础神煞
+    roleInDestiny,
+    integratedSummary
+  };
+};
+
+export const interpretAnnualPillar = (chart: BaziChart, annualGz: GanZhi): PillarInterpretation => {
+  const tenGod = annualGz.shiShenGan;
+  const element = annualGz.ganElement;
+  const yearZhi = chart.pillars.year.ganZhi.zhi;
+  const dayZhi = chart.pillars.day.ganZhi.zhi;
+  
+  let coreSymbolism = `流年${annualGz.gan}${annualGz.zhi}，天干${tenGod}主事。`;
+  
+  let luckAnalysis = '';
+  if (chart.balance.yongShen.includes(element)) {
+    luckAnalysis = `流年天干${element}助身（喜用），今年${tenGod}方面易有收获或贵人。`;
+  } else if (chart.balance.jiShen.includes(element)) {
+    luckAnalysis = `流年天干${element}为忌，留意${tenGod}相关之压力或损耗。`;
+  }
+
+  let specialRelation = '';
+  if (annualGz.zhi === yearZhi) specialRelation += '【值太岁】本命年，宜静不宜动，注意情绪与健康。';
+  if (BRANCH_CLASHES[annualGz.zhi] === yearZhi) specialRelation += '【冲太岁】岁破之年，变动大，防意外或长辈健康。';
+  if (BRANCH_CLASHES[annualGz.zhi] === dayZhi) specialRelation += '【冲日支】夫妻宫受冲，感情易生波折或身体不适。';
+
+  const integratedSummary = `${coreSymbolism} ${luckAnalysis} ${specialRelation} 纳音${annualGz.naYin}。`;
+
+  return {
+    pillarName: '流年',
+    coreSymbolism: getGanSymbolism(annualGz.gan),
+    hiddenDynamics: `流年地支藏干${annualGz.hiddenStems.map(h => h.stem).join('')}。`,
+    naYinInfluence: getNaYinSymbolism(annualGz.naYin),
+    lifeStageEffect: `流年处${annualGz.lifeStage}地。`,
+    shenShaEffects: [],
+    roleInDestiny: '流年管一年吉凶，主要应期所在。',
+    integratedSummary
+  };
 };
 
 // --- Core Service Functions ---
