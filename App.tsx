@@ -472,6 +472,7 @@ const TipsView: React.FC<{ chart: BaziChart | null }> = ({ chart }) => {
 const HomeView: React.FC<{ onGenerate: (profile: UserProfile, subTab?: ChartSubTab) => void }> = ({ onGenerate }) => {
   const [name, setName] = useState('');
   const [gender, setGender] = useState<Gender>('male');
+  // 核心修改：允许自由输入的日期 State，不强求标准格式
   const [birthDate, setBirthDate] = useState('1990-01-01');
   const [birthTime, setBirthTime] = useState('12:00');
   const [isSolarTime, setIsSolarTime] = useState(false);
@@ -497,9 +498,46 @@ const HomeView: React.FC<{ onGenerate: (profile: UserProfile, subTab?: ChartSubT
       }
   };
 
-const handleSubmit = (e: React.FormEvent) => {
-  e.preventDefault();
-  if (!birthDate || !birthTime) return; // 只要求时间和日期
+  // 1. onChange: 只负责接收用户输入，不做任何“自作聪明”的修改
+  // 允许用户输入 1986、19868、198682... 等中间状态
+  const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    // 允许输入数字和横杠，禁止其他字符
+    if (/^[\d-]*$/.test(val)) {
+      setBirthDate(val); 
+    }
+  };
+
+  // 2. onBlur: 当用户输完离开时，才进行“强力格式化”
+  const handleDateBlur = () => {
+    // 去除横杠，只看数字
+    let raw = birthDate.replace(/\D/g, '');
+    
+    // 情况 A: 用户输入了完整 8 位 (19860827) -> 完美，转为 1986-08-27
+    if (raw.length === 8) {
+      setBirthDate(`${raw.slice(0, 4)}-${raw.slice(4, 6)}-${raw.slice(6, 8)}`);
+    }
+    // 情况 B: 用户输入了 7 位 (1986827) -> 可能是 1986-8-27，尝试补全
+    // 逻辑：年份4位 + 月份1位 + 日期2位 (通常是月份缺0)
+    else if (raw.length === 7) {
+      const y = raw.slice(0, 4);
+      const m = raw.slice(4, 5); // 取1位作为月份
+      const d = raw.slice(5, 7);
+      setBirthDate(`${y}-0${m}-${d}`); // 补全为 1986-08-27
+    }
+    // 情况 C: 用户输入了 6 位 (198681) -> 可能是 1986-8-1
+    else if (raw.length === 6) {
+        const y = raw.slice(0, 4);
+        const m = raw.slice(4, 5);
+        const d = raw.slice(5, 6);
+        setBirthDate(`${y}-0${m}-0${d}`); // 补全为 1986-08-01
+    }
+    // 其他情况不做处理，保留原样让用户自己看
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!birthDate || !birthTime) return; // 只要求时间和日期
 
     const profile: UserProfile = {
       id: Date.now().toString(),
@@ -562,13 +600,29 @@ const handleSubmit = (e: React.FormEvent) => {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-bold text-stone-400 uppercase tracking-wider mb-2">公历日期</label>
-              <input 
-                type="date" 
-                value={birthDate} 
-                onChange={e => setBirthDate(e.target.value)} 
-                className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-3 outline-none focus:ring-2 focus:ring-stone-900/10 focus:border-stone-400 font-sans text-sm"
-                required
-              />
+              <div className="relative">
+                <input 
+                  type="text" 
+                  inputMode="numeric" // 手机端弹出数字键盘
+                  value={birthDate} 
+                  onChange={handleDateChange} // 👈 只有纯粹的更新，无干扰
+                  onBlur={handleDateBlur}     // 👈 离开时才格式化
+                  placeholder="如: 19860827 (支持连写)" 
+                  maxLength={10} 
+                  className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-3 outline-none focus:ring-2 focus:ring-stone-900/10 focus:border-stone-400 font-sans text-sm tracking-widest"
+                  required
+                />
+                
+                {/* 只有当格式完全正确时 (YYYY-MM-DD)，才显示绿色对勾 */}
+                {/^\d{4}-\d{2}-\d{2}$/.test(birthDate) && (
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 text-green-500 animate-in zoom-in duration-300">
+                    <Check size={16} />
+                  </div>
+                )}
+              </div>
+              <p className="text-[10px] text-stone-400 mt-1 pl-1">
+                支持 8 位纯数字连写 (推荐)，如 <b>19900101</b>
+              </p>
             </div>
             <div>
               <label className="block text-xs font-bold text-stone-400 uppercase tracking-wider mb-2">出生时间</label>
