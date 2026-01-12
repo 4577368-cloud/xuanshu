@@ -484,22 +484,59 @@ const HomeView: React.FC<{ onGenerate: (profile: UserProfile, subTab?: ChartSubT
           setLongitude(cityData.longitude);
       }
   };
+const handleDateInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const val = e.target.value;
+  setBirthDate(val); // 实时显示用户输入的原始字符
 
-  const handleDateInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value;
-    setBirthDate(val);
-    const pureDigits = val.replace(/\D/g, '');
-    if (pureDigits.length === 8) {
-      const year = pureDigits.substring(0, 4);
-      const month = pureDigits.substring(4, 6);
-      const day = pureDigits.substring(6, 8);
-      const formattedDate = `${year}-${month}-${day}`;
-      const testDate = new Date(year + '/' + month + '/' + day);
+  // 提取所有数字
+  let pureDigits = val.replace(/\D/g, '');
+
+  // 智能补全逻辑：针对类似 1986827 (7位) 或 1986087 (7位) 的处理
+  if (pureDigits.length >= 7 && pureDigits.length <= 8) {
+    const year = pureDigits.substring(0, 4);
+    let rest = pureDigits.substring(4);
+
+    let month = "";
+    let day = "";
+
+    if (rest.length === 3) {
+      // 情况 A: 7位输入，如 827 (8月27) 或 112 (11月2日/1月12日?)
+      // 这里的逻辑：如果第一位 > 1，那必定是单月
+      if (parseInt(rest[0]) > 1) {
+        month = "0" + rest[0];
+        day = rest.substring(1);
+      } else {
+        // 如果第一位是 1，存在歧义（1月12日 还是 11月2日）
+        // 默认按 11月2日处理，或者根据最后两位是否大于31判断
+        if (parseInt(rest.substring(1)) > 31) {
+            month = rest.substring(0, 2);
+            day = "0" + rest[2];
+        } else {
+            month = rest.substring(0, 2);
+            day = rest.substring(2);
+        }
+      }
+    } else if (rest.length === 4) {
+      // 情况 B: 标准 8 位
+      month = rest.substring(0, 2);
+      day = rest.substring(2, 4);
+    }
+
+    if (month && day) {
+      // 确保月份和日期是两位数
+      const finalMonth = month.length === 1 ? "0" + month : month;
+      const finalDay = day.length === 1 ? "0" + day : day;
+      const formattedDate = `${year}-${finalMonth}-${finalDay}`;
+
+      // 验证最终日期是否合法
+      const testDate = new Date(`${year}/${finalMonth}/${finalDay}`);
       if (!isNaN(testDate.getTime())) {
         setBirthDate(formattedDate);
       }
     }
-  };
+  }
+};
+ 
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -564,17 +601,33 @@ const HomeView: React.FC<{ onGenerate: (profile: UserProfile, subTab?: ChartSubT
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-bold text-stone-400 uppercase tracking-wider mb-2">公历日期</label>
-              <input 
-                type="text"
-                inputMode="numeric"
-                value={birthDate} 
-                onChange={handleDateInputChange} 
-                className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-3 outline-none focus:ring-2 focus:ring-stone-900/10 focus:border-stone-400 font-sans text-sm"
-                placeholder="YYYY-MM-DD 或 YYYYMMDD"
-                required
-              />
-            </div>
+  <label className="block text-xs font-bold text-stone-400 uppercase tracking-wider mb-2">
+    公历日期 (支持快录 1986827)
+  </label>
+  <div className="relative">
+    <input 
+      type="text" 
+      inputMode="numeric"
+      value={birthDate} 
+      onChange={handleDateInputChange} 
+      onBlur={() => {
+        // 失去焦点时，确保格式最终统一为 YYYY-MM-DD
+        if (birthDate.length === 8 && !birthDate.includes('-')) {
+          const f = `${birthDate.substring(0,4)}-${birthDate.substring(4,6)}-${birthDate.substring(6,8)}`;
+          setBirthDate(f);
+        }
+      }}
+      placeholder="YYYYMMDD"
+      className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-3 outline-none focus:ring-2 focus:ring-stone-900/10 focus:border-stone-400 font-sans text-sm"
+    />
+    {/* 提示用户系统识别的结果 */}
+    {birthDate.includes('-') && (
+      <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1 text-[10px] text-green-600 font-bold bg-green-50 px-2 py-1 rounded-md border border-green-100">
+        <Check size={10} /> 格式已校准
+      </div>
+    )}
+  </div>
+</div>
             <div>
               <label className="block text-xs font-bold text-stone-400 uppercase tracking-wider mb-2">出生时间</label>
               <input 
