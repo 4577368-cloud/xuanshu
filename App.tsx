@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { BottomNav, Header } from './components/Layout';
 import { AppTab, ChartSubTab, UserProfile, BaziChart, Gender, TrendActivation, Pillar, GanZhi, BalanceAnalysis, AnnualFortune, PatternAnalysis, InterpretationResult, AiReportRecord, ModalData } from './types';
 import { calculateBazi, getGanZhiForYear, calculateAnnualTrend, calculateAnnualFortune, getAdvancedInterpretation } from './services/baziService';
@@ -466,6 +466,7 @@ const HomeView: React.FC<{ onGenerate: (profile: UserProfile, subTab?: ChartSubT
   const [province, setProvince] = useState('');
   const [city, setCity] = useState('');
   const [longitude, setLongitude] = useState<number | undefined>(undefined);
+  const datePickerRef = useRef<HTMLInputElement>(null);
 
   // Handle Province Change
   const handleProvinceChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -484,59 +485,56 @@ const HomeView: React.FC<{ onGenerate: (profile: UserProfile, subTab?: ChartSubT
           setLongitude(cityData.longitude);
       }
   };
-const handleDateInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-  const val = e.target.value;
-  setBirthDate(val); // 实时显示用户输入的原始字符
 
-  // 提取所有数字
-  let pureDigits = val.replace(/\D/g, '');
+  const handleDateInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setBirthDate(val);
 
-  // 智能补全逻辑：针对类似 1986827 (7位) 或 1986087 (7位) 的处理
-  if (pureDigits.length >= 7 && pureDigits.length <= 8) {
-    const year = pureDigits.substring(0, 4);
-    let rest = pureDigits.substring(4);
+    // 提取所有数字
+    let pureDigits = val.replace(/\D/g, '');
 
-    let month = "";
-    let day = "";
+    // 智能补全逻辑：支持 7 位或 8 位数字
+    if (pureDigits.length >= 7 && pureDigits.length <= 8) {
+      const year = pureDigits.substring(0, 4);
+      let rest = pureDigits.substring(4);
 
-    if (rest.length === 3) {
-      // 情况 A: 7位输入，如 827 (8月27) 或 112 (11月2日/1月12日?)
-      // 这里的逻辑：如果第一位 > 1，那必定是单月
-      if (parseInt(rest[0]) > 1) {
-        month = "0" + rest[0];
-        day = rest.substring(1);
-      } else {
-        // 如果第一位是 1，存在歧义（1月12日 还是 11月2日）
-        // 默认按 11月2日处理，或者根据最后两位是否大于31判断
-        if (parseInt(rest.substring(1)) > 31) {
+      let month = "";
+      let day = "";
+
+      if (rest.length === 3) {
+        // 处理 7 位：例如 1986827 -> 1986-08-27
+        // 如果第一位 > 1，那必定是单月
+        if (parseInt(rest[0]) > 1) {
+          month = "0" + rest[0];
+          day = rest.substring(1);
+        } else {
+          // 歧义处理：112 可能为 01-12 或 11-02
+          if (parseInt(rest.substring(1)) > 31) {
             month = rest.substring(0, 2);
             day = "0" + rest[2];
-        } else {
+          } else {
             month = rest.substring(0, 2);
             day = rest.substring(2);
+          }
+        }
+      } else if (rest.length === 4) {
+        // 8 位
+        month = rest.substring(0, 2);
+        day = rest.substring(2, 4);
+      }
+
+      if (month && day) {
+        const finalMonth = month.length === 1 ? "0" + month : month;
+        const finalDay = day.length === 1 ? "0" + day : day;
+        const formattedDate = `${year}-${finalMonth}-${finalDay}`;
+        
+        const testDate = new Date(`${year}/${finalMonth}/${finalDay}`);
+        if (!isNaN(testDate.getTime())) {
+          setBirthDate(formattedDate);
         }
       }
-    } else if (rest.length === 4) {
-      // 情况 B: 标准 8 位
-      month = rest.substring(0, 2);
-      day = rest.substring(2, 4);
     }
-
-    if (month && day) {
-      // 确保月份和日期是两位数
-      const finalMonth = month.length === 1 ? "0" + month : month;
-      const finalDay = day.length === 1 ? "0" + day : day;
-      const formattedDate = `${year}-${finalMonth}-${finalDay}`;
-
-      // 验证最终日期是否合法
-      const testDate = new Date(`${year}/${finalMonth}/${finalDay}`);
-      if (!isNaN(testDate.getTime())) {
-        setBirthDate(formattedDate);
-      }
-    }
-  }
-};
- 
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -601,33 +599,38 @@ const handleDateInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-  <label className="block text-xs font-bold text-stone-400 uppercase tracking-wider mb-2">
-    公历日期 (支持快录 1986827)
-  </label>
-  <div className="relative">
-    <input 
-      type="text" 
-      inputMode="numeric"
-      value={birthDate} 
-      onChange={handleDateInputChange} 
-      onBlur={() => {
-        // 失去焦点时，确保格式最终统一为 YYYY-MM-DD
-        if (birthDate.length === 8 && !birthDate.includes('-')) {
-          const f = `${birthDate.substring(0,4)}-${birthDate.substring(4,6)}-${birthDate.substring(6,8)}`;
-          setBirthDate(f);
-        }
-      }}
-      placeholder="YYYYMMDD"
-      className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-3 outline-none focus:ring-2 focus:ring-stone-900/10 focus:border-stone-400 font-sans text-sm"
-    />
-    {/* 提示用户系统识别的结果 */}
-    {birthDate.includes('-') && (
-      <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1 text-[10px] text-green-600 font-bold bg-green-50 px-2 py-1 rounded-md border border-green-100">
-        <Check size={10} /> 格式已校准
-      </div>
-    )}
-  </div>
-</div>
+              <label className="block text-xs font-bold text-stone-400 uppercase tracking-wider mb-1">
+                公历日期
+              </label>
+              <div className="relative">
+                <input 
+                  type="text" 
+                  inputMode="numeric"
+                  value={birthDate} 
+                  onChange={handleDateInputChange}
+                  placeholder="19900101"
+                  className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-3 outline-none focus:ring-2 focus:ring-stone-900/10 focus:border-stone-400 font-sans text-sm pr-10"
+                />
+                <div 
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-300 cursor-pointer p-1 hover:text-amber-500 transition-colors"
+                  onClick={() => datePickerRef.current?.showPicker()}
+                >
+                  <Calendar size={18} />
+                </div>
+                {/* 隐藏的原生入口 */}
+                <input 
+                  ref={datePickerRef}
+                  type="date"
+                  className="absolute inset-0 w-0 h-0 opacity-0 pointer-events-none"
+                  onChange={(e) => setBirthDate(e.target.value)}
+                />
+              </div>
+              {birthDate.includes('-') && (
+                <p className="text-[10px] text-green-600 font-bold mt-1.5 flex items-center gap-1 pl-1">
+                  <Check size={10} /> 格式已校准为：{birthDate}
+                </p>
+              )}
+            </div>
             <div>
               <label className="block text-xs font-bold text-stone-400 uppercase tracking-wider mb-2">出生时间</label>
               <input 
