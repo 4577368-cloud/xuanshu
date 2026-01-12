@@ -19,9 +19,10 @@ root.render(
 // ==============================
 if ('serviceWorker' in navigator) {
   // 兼容 Vite 和 Create React App 的生产环境检测
+  // Fix: Use type assertion to avoid TypeScript error on ImportMeta when using Vite
   const isProduction =
     (typeof process !== 'undefined' && process.env.NODE_ENV === 'production') ||
-    (typeof import.meta !== 'undefined' && import.meta.env?.PROD);
+    (typeof import.meta !== 'undefined' && (import.meta as any).env?.PROD);
 
   if (isProduction) {
     window.addEventListener('load', () => {

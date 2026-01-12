@@ -485,10 +485,25 @@ const HomeView: React.FC<{ onGenerate: (profile: UserProfile, subTab?: ChartSubT
       }
   };
 
-const handleSubmit = (e: React.FormEvent) => {
-  e.preventDefault();
-  if (!birthDate || !birthTime) return; // 只要求时间和日期
+  const handleDateInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setBirthDate(val);
+    const pureDigits = val.replace(/\D/g, '');
+    if (pureDigits.length === 8) {
+      const year = pureDigits.substring(0, 4);
+      const month = pureDigits.substring(4, 6);
+      const day = pureDigits.substring(6, 8);
+      const formattedDate = `${year}-${month}-${day}`;
+      const testDate = new Date(year + '/' + month + '/' + day);
+      if (!isNaN(testDate.getTime())) {
+        setBirthDate(formattedDate);
+      }
+    }
+  };
 
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!birthDate || !birthTime) return;
     const profile: UserProfile = {
       id: Date.now().toString(),
       name,
@@ -498,7 +513,7 @@ const handleSubmit = (e: React.FormEvent) => {
       isSolarTime,
       province,
       city,
-      longitude, // Pass longitude to service
+      longitude,
       createdAt: Date.now(),
       avatar: 'default'
     };
@@ -551,10 +566,12 @@ const handleSubmit = (e: React.FormEvent) => {
             <div>
               <label className="block text-xs font-bold text-stone-400 uppercase tracking-wider mb-2">公历日期</label>
               <input 
-                type="date" 
+                type="text"
+                inputMode="numeric"
                 value={birthDate} 
-                onChange={e => setBirthDate(e.target.value)} 
+                onChange={handleDateInputChange} 
                 className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-3 outline-none focus:ring-2 focus:ring-stone-900/10 focus:border-stone-400 font-sans text-sm"
+                placeholder="YYYY-MM-DD 或 YYYYMMDD"
                 required
               />
             </div>
@@ -763,7 +780,7 @@ const ChartView: React.FC<{
       isKongWang(p.ganZhi.zhi) ? 
         <span className="text-[10px] bg-stone-200 px-1 rounded text-stone-600">空</span> : 
         <span className="text-stone-200">—</span> 
-  }, // 👈👈👈 这里加逗号！
+  },
   { 
     label: '神煞',
     render: (p: Pillar) => (
@@ -838,8 +855,8 @@ const ChartView: React.FC<{
 const columns = [
         { title: '年柱', ganZhi: chart.pillars.year.ganZhi, data: chart.pillars.year },      
         { title: '月柱', ganZhi: chart.pillars.month.ganZhi, data: chart.pillars.month },
-        { title: '时柱', ganZhi: chart.pillars.hour.ganZhi, data: chart.pillars.hour },
         { title: '日柱', ganZhi: chart.pillars.day.ganZhi, data: chart.pillars.day },      
+        { title: '时柱', ganZhi: chart.pillars.hour.ganZhi, data: chart.pillars.hour },
         { title: isXiaoYun ? '小运' : '大运', isDynamic: true, ganZhi: isXiaoYun ? xiaoYunData?.ganZhi : currentLuck?.ganZhi, age: isXiaoYun ? xiaoYunData?.age : currentLuck?.startAge, year: isXiaoYun ? xiaoYunData?.year : currentLuck?.startYear },
         { title: '流年', isDynamic: true, ganZhi: annualGanZhi, age: ageInYear, year: analysisYear }
     ];
@@ -863,10 +880,8 @@ const columns = [
                      <div className="bg-stone-100 flex items-center justify-center text-[10px] text-stone-500 font-bold">藏干</div>
                      {columns.map((col, i) => <div key={i} className="h-16 bg-white">{col.ganZhi && (<div className="flex flex-col items-center justify-center h-full w-full py-1 gap-0.5 px-0.5">{col.ganZhi.hiddenStems.map((h: any, j: number) => (<div key={j} className="flex items-center justify-between w-full max-w-[3.5rem] gap-1 leading-none"><span className="text-[10px] font-bold shrink-0"><ElementText text={h.stem} /></span><span className="text-[10px] text-stone-500 whitespace-nowrap scale-90">{h.shiShen}</span></div>))}</div>)}</div>)}
 
- {/* === 神煞 行 === */}
 <div className="bg-stone-100 flex items-center justify-center text-[10px] text-stone-500 font-bold">神煞</div>
 {columns.map((col, i) => {
-  // Fix: Access shenSha from col.data (Pillar) or provide fallback if it's dynamic
   const shenShaList = col.data?.shenSha || [];
   return (
     <div key={i} className="h-16 bg-white">
@@ -1330,7 +1345,6 @@ const ArchiveView: React.FC<{
 
   return (
     <div className="bg-stone-50 min-h-full flex flex-col">
-        {/* Search Bar */}
         <div className="p-4 bg-white border-b border-stone-200 sticky top-0 z-10">
             <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" size={16} />
@@ -1383,7 +1397,6 @@ const ArchiveView: React.FC<{
                                 </div>
 
                                 <div className="flex flex-wrap gap-1.5 mt-2 items-center">
-                                    {/* Action Buttons inside Card */}
                                     <button
                                         onClick={(e) => { e.stopPropagation(); setEditingTagsProfile(profile); }}
                                         className="flex items-center gap-1 text-[10px] bg-stone-100 hover:bg-stone-200 text-stone-500 px-2 py-0.5 rounded-full border border-stone-200 transition-colors"
@@ -1417,7 +1430,6 @@ const ArchiveView: React.FC<{
             )}
         </div>
 
-        {/* Modals */}
         {editingTagsProfile && (
             <TagEditModal 
                 profile={editingTagsProfile} 
@@ -1479,7 +1491,6 @@ const App: React.FC = () => {
     if (currentProfile) {
       const updatedArchives = saveAiReportToArchive(currentProfile.id, report);
       setArchives(updatedArchives);
-      // Also update current profile to reflect new report
       const updatedProfile = updatedArchives.find(p => p.id === currentProfile.id);
       if (updatedProfile) {
           setCurrentProfile(updatedProfile);
